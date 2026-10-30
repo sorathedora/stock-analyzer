@@ -1,5 +1,6 @@
 """Polite downloads of public exchange files."""
 import io
+import threading
 import time
 import zipfile
 
@@ -8,8 +9,15 @@ import requests
 HEADERS = {"User-Agent": "Mozilla/5.0 (stock-analyzer personal research)"}
 PAUSE_SECONDS = 0.3
 
-_session = requests.Session()
-_session.headers.update(HEADERS)
+_local = threading.local()
+
+
+def _session():
+    # One session per thread; backfills download several days in parallel.
+    if not hasattr(_local, "session"):
+        _local.session = requests.Session()
+        _local.session.headers.update(HEADERS)
+    return _local.session
 
 
 def get(url, retries=3, timeout=60):
@@ -21,7 +29,7 @@ def get(url, retries=3, timeout=60):
     for attempt in range(retries):
         time.sleep(PAUSE_SECONDS)
         try:
-            r = _session.get(url, timeout=timeout)
+            r = _session().get(url, timeout=timeout)
         except requests.RequestException:
             if attempt == retries - 1:
                 raise

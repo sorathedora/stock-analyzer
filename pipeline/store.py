@@ -41,6 +41,13 @@ def save_prices(new):
         rows.sort_values(["date", "isin"]).to_parquet(f, index=False)
 
 
+def stored_dates():
+    dates = set()
+    for f in DATA.glob("prices_*.parquet"):
+        dates.update(pd.read_parquet(f, columns=["date"])["date"].unique())
+    return {pd.Timestamp(d) for d in dates}
+
+
 def last_price_date():
     files = sorted(DATA.glob("prices_*.parquet"))
     if not files:

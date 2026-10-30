@@ -9,6 +9,7 @@
 """
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -16,6 +17,7 @@ from . import archive, collect, google, prices, ratios, store, universe
 from .bhavcopy import combine, fetch_bse, fetch_nse
 
 HISTORY_YEARS = 6  # enough for 5-year returns
+BACKFILL_WORKERS = 4  # days downloaded at once; kept low to stay polite
 
 
 def _with_isin(df, symbol_to_isin):
@@ -45,31 +47,37 @@ def fetch_day(day):
     return {"prices": rows, "actions": actions, "pe": pe, "nse": nse, "bse": bse}
 
 
-def fetch_range(start, end):
-    """Fetch and store each weekday; return the last trading day's raw files."""
+def fetch_range(start, end, workers=1, skip_stored=False):
+    """Fetch and store each weekday; return the last trading day's raw files.
+
+    Several days can be downloaded at once (backfills); results are still
+    stored in date order. With skip_stored, days already saved are skipped,
+    so an interrupted backfill can resume.
+    """
+    days = list(pd.bdate_range(start, end))
+    if skip_stored:
+        stored = store.stored_dates()
+        days = [d for d in days if d not in stored]
     latest = None
-    batch = {"prices": [], "actions": [], "pe": []}
-
-    def flush():
-        for key, save in (("prices", store.save_prices), ("actions", store.save_actions), ("pe", store.save_nse_pe)):
-            frames = [f for f in batch[key] if f is not None and not f.empty]
-            if frames:
-                save(pd.concat(frames, ignore_index=True))
-            batch[key] = []
-
-    for day in pd.bdate_range(start, end):
-        got = fetch_day(day)
-        if got is None:
-            print(f"{day.date()} holiday / no files")
-            continue
-        for key in batch:
-            batch[key].append(got[key])
-        latest = (day, got["nse"], got["bse"])
-        n_actions = 0 if got["actions"] is None else len(got["actions"])
-        print(f"{day.date()} {len(got['prices'])} companies, {n_actions} corporate actions")
-        if len(batch["prices"]) >= 60:
-            flush()
-    flush()
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        # Store every 60 days so memory stays small and progress is saved.
+        for i in range(0, len(days), 60):
+            chunk = days[i:i + 60]
+            batch = {"prices": [], "actions": [], "pe": []}
+            for day, got in zip(chunk, pool.map(fetch_day, chunk)):
+                if got is None:
+                    print(f"{day.date()} holiday / no files")
+                    continue
+                for key in batch:
+                    batch[key].append(got[key])
+                latest = (day, got["nse"], got["bse"])
+                n_actions = 0 if got["actions"] is None else len(got["actions"])
+                print(f"{day.date()} {len(got['prices'])} companies, {n_actions} corporate actions")
+            for key, save in (("prices", store.save_prices), ("actions", store.save_actions),
+                              ("pe", store.save_nse_pe)):
+                frames = [f for f in batch[key] if f is not None and not f.empty]
+                if frames:
+                    save(pd.concat(frames, ignore_index=True))
     return latest
 
 
@@ -126,7 +134,10 @@ def main(argv=None):
         print(f"wrote {n} companies to {args.path}")
         return
     if args.cmd == "backfill":
-        latest = fetch_range(args.start, args.end)
+        latest = fetch_range(args.start, args.end, workers=BACKFILL_WORKERS, skip_stored=True)
+        if latest is None:
+            print("Nothing new in this range")
+            return
     elif args.cmd == "daily":
         last = store.last_price_date()
         if last is None:
