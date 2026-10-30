@@ -6,7 +6,7 @@ on:
     - cron: "30 17 * * 1-5"
   workflow_dispatch:
 concurrency:
-  group: data
+  group: prices
   cancel-in-progress: false
 permissions:
   contents: write
@@ -25,4 +25,6 @@ jobs:
       - run: pip install -r requirements.txt
       - run: scripts/data_release.sh download
       - run: python -m pipeline daily
-      - run: scripts/data_release.sh upload
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
+      - run: scripts/data_release.sh upload 'prices_*' universe.parquet corporate_actions.parquet nse_pe.parquet 'price_metrics.*' adjustments.csv 'ratios.*' google_history.parquet

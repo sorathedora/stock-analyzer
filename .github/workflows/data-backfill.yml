@@ -10,7 +10,7 @@ on:
         description: Last date (YYYY-MM-DD)
         required: true
 concurrency:
-  group: data
+  group: prices
   cancel-in-progress: false
 permissions:
   contents: write
@@ -32,4 +32,4 @@ jobs:
         env:
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
-      - run: scripts/data_release.sh upload
+      - run: scripts/data_release.sh upload 'prices_*' universe.parquet corporate_actions.parquet nse_pe.parquet 'price_metrics.*' adjustments.csv

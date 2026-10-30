@@ -1,0 +1,147 @@
+"""Fundamental ratios for every company.
+
+PE uses the best available earnings, in this order:
+  1. last four quarters from the company's own filings (TTM)
+  2. the latest full financial year from its filings
+  3. Google Finance's EPS
+and is cross-checked against Google Finance whenever both exist. Consolidated
+figures are preferred over standalone, as on Screener.
+"""
+import numpy as np
+import pandas as pd
+
+from . import filings
+
+# A PE more than this far from Google Finance's is flagged for review.
+PE_MISMATCH_PCT = 10
+
+
+def _pick_basis(results):
+    """Consolidated rows where a company files them, else standalone."""
+    consolidated = results["basis"] == "consolidated"
+    files_consolidated = results["isin"].isin(results.loc[consolidated, "isin"])
+    return results[consolidated | ~files_consolidated]
+
+
+def _owners_profit(df):
+    return df["net_profit_owners"].where(df["net_profit_owners"].fillna(0) != 0, df["net_profit"])
+
+
+def ttm(results):
+    """Trailing-twelve-month profit and EPS from four consecutive quarters."""
+    q = _pick_basis(results[results["period"] == "quarter"]).copy()
+    q["profit"] = _owners_profit(q)
+    q = q.sort_values("period_end").drop_duplicates(["isin", "period_end"], keep="last")
+    rows = []
+    for isin, g in q.groupby("isin"):
+        last4 = g.tail(4)
+        ends = last4["period_end"].tolist()
+        consecutive = len(ends) == 4 and all(
+            80 <= (b - a).days <= 100 for a, b in zip(ends, ends[1:]))
+        if consecutive:
+            rows.append({"isin": isin, "ttm_end": ends[-1], "ttm_profit": last4["profit"].sum(),
+                         "ttm_eps": last4["eps_diluted"].fillna(last4["eps_basic"]).sum(),
+                         "ttm_revenue": last4["revenue"].sum()})
+    return pd.DataFrame(rows, columns=["isin", "ttm_end", "ttm_profit", "ttm_eps", "ttm_revenue"])
+
+
+def latest_rows(results):
+    """Per company: its latest quarter, year-to-date row and full year."""
+    r = _pick_basis(results).sort_values("period_end")
+    quarter = r[r["period"] == "quarter"].groupby("isin").tail(1).set_index("isin")
+    ytd = r[r["period"] == "year_to_date"].groupby("isin").tail(1).set_index("isin")
+    year = r[(r["period"] == "year_to_date") & (r["months"] == 12)].groupby("isin").tail(1).set_index("isin")
+    return quarter, ytd, year
+
+
+def compute(price_metrics, results=None, google=None, shareholding=None):
+    m = price_metrics.set_index("isin")
+    out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
+    shares = m.get("shares")
+
+    if results is not None and not results.empty:
+        # Filings only carry the items a company reports; add the rest as blanks.
+        fields = set(filings.PERIOD_ITEMS.values()) | set(filings.BALANCE_ITEMS.values())
+        results = results.reindex(columns=results.columns.union(sorted(fields)))
+        quarter, ytd, year = latest_rows(results)
+        t = ttm(results).set_index("isin")
+
+        out["eps_ttm"] = t["ttm_eps"]
+        out["eps_last_fy"] = year["eps_diluted"].fillna(year["eps_basic"])
+        out["last_fy_end"] = year["period_end"]
+        out["pe_filings"] = np.where(out["eps_ttm"].notna(), out["close"] / out["eps_ttm"],
+                                     out["close"] / out["eps_last_fy"])
+        out["pe_filings_basis"] = np.where(out["eps_ttm"].notna(), "TTM",
+                                           np.where(out["eps_last_fy"].notna(), "last FY", None))
+
+        q = quarter
+        out["latest_quarter"] = q["period_end"]
+        out["revenue_q_cr"] = q["revenue"] / 1e7
+        out["net_profit_q_cr"] = _owners_profit(q) / 1e7
+        ebitda = q["profit_before_tax"] + q["finance_cost"].fillna(0) + q["depreciation"].fillna(0) - q["other_income"].fillna(0)
+        out["ebitda_margin_q_pct"] = ebitda / q["revenue"] * 100
+        out["net_margin_q_pct"] = q["net_profit"] / q["revenue"] * 100
+
+        b = ytd  # balance sheet sits on the latest year-to-date row
+        equity = b["equity_owners"].fillna(b["total_equity"])
+        debt = b["borrowings"].fillna(b["borrowings_noncurrent"].fillna(0) + b["borrowings_current"].fillna(0))
+        cash = b["cash"].fillna(0) + b["other_bank_balances"].fillna(0) + b["current_investments"].fillna(0)
+        out["balance_sheet_date"] = b["period_end"]
+        out["book_value_cr"] = equity / 1e7
+        out["debt_cr"] = debt / 1e7
+        out["cash_cr"] = cash / 1e7
+        out["debt_to_equity"] = debt / equity
+        out["current_ratio"] = b["current_assets"] / b["current_liabilities"]
+        if shares is not None:
+            out["book_value_per_share"] = equity / shares
+            out["pb"] = out["close"] / out["book_value_per_share"]
+        out["ev_cr"] = out["market_cap_cr"] + out["debt_cr"] - out["cash_cr"]
+
+        # Annualised from the year to date until four quarters are on file.
+        months = b["months"].replace(0, np.nan)
+        annual_profit = t["ttm_profit"].reindex(out.index).fillna(_owners_profit(b) * 12 / months)
+        out["roe_pct"] = annual_profit / equity * 100
+        out["roe_basis"] = np.where(t["ttm_profit"].reindex(out.index).notna(), "TTM",
+                                    np.where(annual_profit.notna(), "annualised YTD", None))
+        out["cash_from_operations_ytd_cr"] = b["cash_from_operations"] / 1e7
+        out["free_cash_flow_ytd_cr"] = (b["cash_from_operations"] - b["capex"].fillna(0)) / 1e7
+
+    if google is not None and not google.empty:
+        g = google.drop_duplicates("isin").set_index("isin")
+        out["eps_google"] = g["google_eps"]
+        # Same closing price as our own PE, so the two differ only by EPS.
+        out["pe_google"] = out["close"] / out["eps_google"]
+
+    # Final PE: own filings first, Google as fallback, with a cross-check.
+    pe_f = out.get("pe_filings", pd.Series(np.nan, index=out.index))
+    pe_g = out.get("pe_google", pd.Series(np.nan, index=out.index))
+    eps_f = out.get("eps_ttm", pd.Series(np.nan, index=out.index)).fillna(
+        out.get("eps_last_fy", pd.Series(np.nan, index=out.index)))
+    eps_g = out.get("eps_google", pd.Series(np.nan, index=out.index))
+    out["pe"] = pe_f.where(pe_f.notna(), pe_g)
+    out["pe_source"] = np.select([pe_f.notna(), pe_g.notna()], ["filings", "google"], None)
+    diff = (pe_f / pe_g - 1).abs() * 100
+    loss_mismatch = (eps_f < 0) != (eps_g < 0)
+    out["pe_check"] = np.select(
+        [pe_f.notna() & pe_g.notna() & (diff <= PE_MISMATCH_PCT),
+         pe_f.notna() & eps_g.notna() & ((diff > PE_MISMATCH_PCT) | loss_mismatch),
+         pe_f.notna() | pe_g.notna()],
+        ["verified", "mismatch", "single source"], None)
+    # A loss makes PE meaningless; show it blank rather than negative.
+    eps_used = eps_f.where(pe_f.notna(), eps_g)
+    out.loc[eps_used <= 0, "pe"] = np.nan
+    out["earnings_yield_pct"] = 100 / out["pe"]
+
+    if shareholding is not None and not shareholding.empty:
+        s = shareholding.sort_values("as_of")
+        latest = s.groupby("isin").tail(1).set_index("isin")
+        previous = s.groupby("isin").nth(-2).set_index("isin") if len(s) > 1 else latest.iloc[0:0]
+        for c in ["promoter_pct", "fii_pct", "dii_pct", "public_pct", "promoter_pledged_pct"]:
+            if c in latest:
+                out[c] = latest[c]
+                if c in previous:
+                    out[c + "_change"] = latest[c] - previous[c].reindex(latest.index)
+        out["shareholding_as_of"] = latest["as_of"]
+
+    keep = m.columns.difference(out.columns).difference(["exchange", "symbol", "as_of"])
+    return out.join(m[keep]).reset_index()

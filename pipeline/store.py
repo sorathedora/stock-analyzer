@@ -8,6 +8,9 @@ UNIVERSE = DATA / "universe.parquet"
 METRICS = DATA / "price_metrics.parquet"
 ACTIONS = DATA / "corporate_actions.parquet"
 NSE_PE = DATA / "nse_pe.parquet"
+FILINGS_INDEX = DATA / "filings_index.parquet"
+RESULTS = DATA / "results.parquet"
+SHAREHOLDING = DATA / "shareholding.parquet"
 
 PRICE_COLUMNS = ["date", "exchange", "isin", "symbol", "series", "open", "high", "low",
                  "close", "prev_close", "volume", "value", "trades", "shares"]
@@ -65,6 +68,39 @@ def load_actions():
 
 def save_nse_pe(new):
     return _append(NSE_PE, new, ["date", "symbol"])
+
+
+def save_filings_index(new):
+    return _append(FILINGS_INDEX, new, ["link"])
+
+
+def save_results(new):
+    # A revised filing for the same company, basis and period replaces the old one.
+    return _append(RESULTS, new.sort_values("published"),
+                   ["isin", "basis", "period", "period_start", "period_end"])
+
+
+def save_shareholding(new):
+    return _append(SHAREHOLDING, new.sort_values("published"), ["isin", "as_of"])
+
+
+GOOGLE = DATA / "google_history.parquet"
+RATIOS = DATA / "ratios.parquet"
+
+
+def load(path):
+    return pd.read_parquet(path) if path.exists() else None
+
+
+def save_google(new):
+    return _append(GOOGLE, new, ["isin", "date"])
+
+
+def save_ratios(r):
+    DATA.mkdir(exist_ok=True)
+    r.to_parquet(RATIOS, index=False)
+    numeric = r.select_dtypes("number").columns
+    r.assign(**r[numeric].round(2)).to_csv(DATA / "ratios.csv", index=False)
 
 
 def save_universe(today, day):

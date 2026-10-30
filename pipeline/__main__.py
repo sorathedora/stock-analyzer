@@ -3,13 +3,16 @@
     python -m pipeline daily              # fetch days since the last stored day
     python -m pipeline backfill START END # fetch a date range (YYYY-MM-DD)
     python -m pipeline metrics            # rebuild company list and metrics only
+    python -m pipeline filings            # collect new results/shareholding filings
+    python -m pipeline ratios             # rebuild ratios from stored data
+    python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
 """
 import argparse
 import sys
 
 import pandas as pd
 
-from . import archive, prices, store, universe
+from . import archive, collect, google, prices, ratios, store, universe
 from .bhavcopy import combine, fetch_bse, fetch_nse
 
 HISTORY_YEARS = 6  # enough for 5-year returns
@@ -83,6 +86,19 @@ def rebuild(latest):
     m = store.save_metrics(prices.metrics(p, actions), u)
     prices.adjustments(p, actions).to_csv(store.DATA / "adjustments.csv", index=False)
     print(f"{len(u)} companies, metrics as of {m['as_of'].max().date()}")
+    build_ratios(m)
+
+
+def build_ratios(price_metrics=None):
+    if price_metrics is None:
+        price_metrics = pd.read_parquet(store.METRICS)
+    g = google.fetch()
+    if g is not None:
+        store.save_google(g.assign(date=price_metrics["as_of"].max()))
+    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING))
+    store.save_ratios(r)
+    counts = r["pe_source"].value_counts().to_dict()
+    print(f"ratios for {len(r)} companies; PE from {counts}; checks {r['pe_check'].value_counts().to_dict()}")
 
 
 def main(argv=None):
@@ -93,8 +109,22 @@ def main(argv=None):
     b.add_argument("start")
     b.add_argument("end")
     sub.add_parser("metrics")
+    sub.add_parser("filings")
+    sub.add_parser("ratios")
+    s = sub.add_parser("sheet")
+    s.add_argument("path", nargs="?", default="google_sheet.xlsx")
     args = ap.parse_args(argv)
 
+    if args.cmd == "filings":
+        collect.collect()
+        return
+    if args.cmd == "ratios":
+        build_ratios()
+        return
+    if args.cmd == "sheet":
+        n = google.make_sheet(pd.read_parquet(store.UNIVERSE), args.path)
+        print(f"wrote {n} companies to {args.path}")
+        return
     if args.cmd == "backfill":
         latest = fetch_range(args.start, args.end)
     elif args.cmd == "daily":
