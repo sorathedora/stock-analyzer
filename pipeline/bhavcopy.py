@@ -65,7 +65,9 @@ def _parse_nse_old(raw):
 
 
 def _parse_bse_old(raw):
-    df = pd.read_csv(io.BytesIO(raw), dtype=str)
+    # Some BSE files have two companies' rows merged into one broken line;
+    # skip those lines and keep the rest of the day.
+    df = pd.read_csv(io.BytesIO(raw), dtype=str, on_bad_lines="skip")
     df.columns = [c.strip() for c in df.columns]
     out = pd.DataFrame({
         "date": pd.to_datetime(df["TRADING_DATE"], format="%d-%b-%y"),
