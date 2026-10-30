@@ -1,6 +1,8 @@
 name: Check data sources
 on:
   push:
+    paths:
+      - scripts/check_sources.py
   workflow_dispatch:
 jobs:
   check:

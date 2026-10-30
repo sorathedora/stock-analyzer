@@ -1,0 +1,28 @@
+name: Daily data
+on:
+  schedule:
+    # 20:00 and 23:00 IST on weekdays; the second run catches late files.
+    - cron: "30 14 * * 1-5"
+    - cron: "30 17 * * 1-5"
+  workflow_dispatch:
+concurrency:
+  group: data
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: scripts/data_release.sh download
+      - run: python -m pipeline daily
+      - run: scripts/data_release.sh upload

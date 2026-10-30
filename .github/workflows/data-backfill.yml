@@ -1,0 +1,35 @@
+name: Backfill data
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: First date (YYYY-MM-DD)
+        required: true
+        default: "2020-10-01"
+      end:
+        description: Last date (YYYY-MM-DD)
+        required: true
+concurrency:
+  group: data
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: scripts/data_release.sh download
+      - run: python -m pipeline backfill "$START" "$END"
+        env:
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+      - run: scripts/data_release.sh upload
