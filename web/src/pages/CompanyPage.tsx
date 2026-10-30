@@ -150,7 +150,7 @@ export function CompanyPage({ d }: { d: Dataset }) {
   const [section, setSection] = useState("overview");
   const nav = useNavigate();
 
-  useEffect(() => { document.title = c ? `${c.short} · Stock analyzer` : "Stock analyzer"; }, [c]);
+  useEffect(() => { document.title = c ? `${c.short} · Parakh` : "Parakh"; }, [c]);
   useEffect(() => {
     const page = document.querySelector(".page");
     if (!page) return;

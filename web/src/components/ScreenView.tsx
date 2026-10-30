@@ -9,6 +9,12 @@ import { QueryBar, useQuery } from "./QueryBar";
 import { QuickView } from "./QuickView";
 import { AddToWatchlist } from "./AddToWatchlist";
 
+const FROM_FILINGS = new Set([
+  "pb", "ev_cr", "eps_ttm", "roe_pct", "ebitda_margin_q_pct", "net_margin_q_pct", "debt_to_equity", "current_ratio",
+  "free_cash_flow_ytd_cr", "revenue_q_cr", "net_profit_q_cr", "book_value_cr", "debt_cr", "cash_cr", "latest_quarter",
+  "promoter_pct", "promoter_pct_change", "fii_pct", "fii_pct_change", "dii_pct", "public_pct", "promoter_pledged_pct",
+]);
+
 export interface ViewState { preset: string; columns: string[]; query: string; sort: Sort }
 
 export const defaultView = (): ViewState => ({ preset: "Overview", columns: PRESETS.Overview, query: "", sort: { key: "market_cap_cr", dir: -1 } });
@@ -88,6 +94,9 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   }, [shown, cursor, open, selected, nav, d]);
 
   const setPreset = (p: string) => onView({ ...view, preset: p, columns: p === "Custom" ? view.columns : PRESETS[p] });
+  // Ratios that need the company's results are empty until it files them.
+  const fromFilings = view.columns.filter((k) => FROM_FILINGS.has(k));
+  const filed = rows.filter((r) => r.latest_quarter || r.balance_sheet_date || r.shareholding_as_of).length;
   const sel = [...selected];
   const medianOf = (k: string) => {
     const v = shown.map((r) => r[k]).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
@@ -112,6 +121,13 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         <QueryBar value={view.query} onChange={(q) => onView({ ...view, query: q })} count={shown.length} total={rows.length} error={error} />
         <button className="btn" onClick={() => download(`${exportName}.csv`, toCsv(shown, view.columns))} data-tip="Download what you see as CSV (opens in Excel)">Export</button>
       </div>
+      {fromFilings.length > 0 && filed < rows.length * 0.8 && (
+        <div className="banner" style={{ margin: "0 20px 10px" }}>
+          {fromFilings.map((k) => BY_KEY[k]?.short ?? BY_KEY[k]?.label).join(", ")} come from each company's own filings with NSE (results and shareholding).
+          They're on file for <b>{filed.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")}</b> companies here so far.
+          New filings are collected every 10 minutes; most companies file their September-quarter results by 14 November.
+        </div>
+      )}
       <CompanyTable
         d={d} rows={shown} columns={view.columns} sort={view.sort} onSort={(s) => onView({ ...view, sort: s })}
         selected={selected} onSelect={setSelected} cursor={cursor} onOpen={openRow}

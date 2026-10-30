@@ -2,9 +2,9 @@
   --bg: #f7f7f5; --panel: #ffffff; --rail: #f1f1ee; --sunk: #f3f3f0;
   --ink: #17181a; --ink-2: #5b5e66; --ink-3: #8b8e96;
   --line: #e7e6e1; --line-2: #d9d8d2; --hover: #f3f3f0;
-  --accent: #2f5bea; --accent-ink: #ffffff; --accent-wash: rgba(47, 91, 234, .08);
+  --accent: #5b2ee0; --accent-ink: #ffffff; --accent-wash: rgba(91, 46, 224, .08);
   --up: #13834f; --down: #c8352b; --warn: #b7791f; --ok: #13834f;
-  --range: #e4e4df; --chart: #2f5bea; --chart-fill: rgba(47, 91, 234, .10);
+  --range: #e4e4df; --chart: #5b2ee0; --chart-fill: rgba(91, 46, 224, .10);
   --shadow: 0 8px 28px rgba(20, 20, 20, .10), 0 2px 6px rgba(20, 20, 20, .06);
   --overlay: rgba(10, 10, 12, .30);
   --mono: "JetBrains Mono", ui-monospace, monospace;
@@ -15,9 +15,9 @@
     --bg: #0f1012; --panel: #16171a; --rail: #121316; --sunk: #1a1b1f;
     --ink: #ecedef; --ink-2: #a3a6ad; --ink-3: #71747b;
     --line: #25272c; --line-2: #30333a; --hover: #1c1e22;
-    --accent: #6b8cff; --accent-ink: #0f1012; --accent-wash: rgba(107, 140, 255, .12);
+    --accent: #a18bff; --accent-ink: #0f1012; --accent-wash: rgba(161, 139, 255, .13);
     --up: #3fbf7f; --down: #ff6b5e; --warn: #e0a84a; --ok: #3fbf7f;
-    --range: #2a2d33; --chart: #6b8cff; --chart-fill: rgba(107, 140, 255, .14);
+    --range: #2a2d33; --chart: #a18bff; --chart-fill: rgba(161, 139, 255, .14);
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --overlay: rgba(0, 0, 0, .5);
     color-scheme: dark;
   }
@@ -26,9 +26,9 @@
   --bg: #0f1012; --panel: #16171a; --rail: #121316; --sunk: #1a1b1f;
   --ink: #ecedef; --ink-2: #a3a6ad; --ink-3: #71747b;
   --line: #25272c; --line-2: #30333a; --hover: #1c1e22;
-  --accent: #6b8cff; --accent-ink: #0f1012; --accent-wash: rgba(107, 140, 255, .12);
+  --accent: #a18bff; --accent-ink: #0f1012; --accent-wash: rgba(161, 139, 255, .13);
   --up: #3fbf7f; --down: #ff6b5e; --warn: #e0a84a; --ok: #3fbf7f;
-  --range: #2a2d33; --chart: #6b8cff; --chart-fill: rgba(107, 140, 255, .14);
+  --range: #2a2d33; --chart: #a18bff; --chart-fill: rgba(161, 139, 255, .14);
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --overlay: rgba(0, 0, 0, .5);
   color-scheme: dark;
 }

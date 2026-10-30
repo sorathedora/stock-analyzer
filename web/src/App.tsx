@@ -19,7 +19,7 @@ function Rail({ d, onSearch, open, onClose }: { d: Dataset; onSearch: () => void
     <aside className={`rail ${open ? "open" : ""}`} aria-label="Navigation" onClick={(e) => (e.target as HTMLElement).closest("a") && onClose()}>
       <div className="brand">
         <i aria-hidden="true"><svg width="14" height="14" viewBox="0 0 32 32"><path d="M5 22l7-7 5 5 10-11" stroke="white" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg></i>
-        Stock analyzer
+        Parakh
       </div>
       <button className="searchbox" onClick={onSearch}><span>Search</span><kbd>⌘K</kbd></button>
       <div style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -69,7 +69,7 @@ export function App() {
     const err = loadError();
     return (
       <div className="app">
-        <aside className="rail"><div className="brand">Stock analyzer</div></aside>
+        <aside className="rail"><div className="brand">Parakh</div></aside>
         <div className="main" style={{ padding: 20 }}>
           {err ? <div className="empty"><h3>Couldn't load data</h3>{err}. Check your connection and reload.</div>
             : Array.from({ length: 12 }, (_, i) => <div key={i} className="skel" style={{ margin: "18px 0", width: `${60 + ((i * 17) % 35)}%` }} />)}
@@ -84,7 +84,7 @@ export function App() {
       <main className="main">
         <div className="mobilebar">
           <button className="btn icon ghost" aria-label="Menu" onClick={() => setMenu(true)}>☰</button>
-          <span style={{ fontWeight: 600 }}>Stock analyzer</span>
+          <span style={{ fontWeight: 600 }}>Parakh</span>
           <button className="btn" style={{ marginLeft: "auto" }} onClick={() => setPalette(true)}>Search</button>
         </div>
         <Routes>

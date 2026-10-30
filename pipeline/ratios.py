@@ -120,6 +120,8 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
         out.get("eps_last_fy", pd.Series(np.nan, index=out.index)))
     eps_g = out.get("eps_google", pd.Series(np.nan, index=out.index))
     out["pe"] = pe_f.where(pe_f.notna(), pe_g)
+    out["eps"] = eps_f.where(eps_f.notna(), eps_g)
+    out["eps_source"] = np.select([eps_f.notna(), eps_g.notna()], ["filings", "google"], None)
     out["pe_source"] = np.select([pe_f.notna(), pe_g.notna()], ["filings", "google"], None)
     diff = (pe_f / pe_g - 1).abs() * 100
     loss_mismatch = (eps_f < 0) != (eps_g < 0)
