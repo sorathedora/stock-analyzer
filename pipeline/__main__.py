@@ -24,6 +24,14 @@ def _with_isin(df, symbol_to_isin):
     return df.assign(isin=df["symbol"].map(symbol_to_isin))
 
 
+def fetch_day_safely(day):
+    """fetch_day, but a failure is returned instead of stopping the run."""
+    try:
+        return fetch_day(day)
+    except Exception as e:
+        return e
+
+
 def fetch_day(day):
     """Prices plus NSE archive data for one day, or None on a holiday."""
     nse, bse = fetch_nse(day), fetch_bse(day)
@@ -58,13 +66,17 @@ def fetch_range(start, end, workers=1, skip_stored=False):
     if skip_stored:
         stored = store.stored_dates()
         days = [d for d in days if d not in stored]
-    latest = None
+    latest, failed = None, []
     with ThreadPoolExecutor(max_workers=workers) as pool:
         # Store every 60 days so memory stays small and progress is saved.
         for i in range(0, len(days), 60):
             chunk = days[i:i + 60]
             batch = {"prices": [], "actions": [], "pe": []}
-            for day, got in zip(chunk, pool.map(fetch_day, chunk)):
+            for day, got in zip(chunk, pool.map(fetch_day_safely, chunk)):
+                if isinstance(got, Exception):
+                    print(f"{day.date()} FAILED: {got!r}")
+                    failed.append(day)
+                    continue
                 if got is None:
                     print(f"{day.date()} holiday / no files")
                     continue
@@ -78,6 +90,9 @@ def fetch_range(start, end, workers=1, skip_stored=False):
                 frames = [f for f in batch[key] if f is not None and not f.empty]
                 if frames:
                     save(pd.concat(frames, ignore_index=True))
+    if failed:
+        # Stored days are skipped on the next run, so a rerun retries only these.
+        print(f"{len(failed)} days failed: {', '.join(str(d.date()) for d in failed)}")
     return latest
 
 

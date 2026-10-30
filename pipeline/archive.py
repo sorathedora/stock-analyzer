@@ -45,7 +45,10 @@ def _read(z, prefix):
     names = [n for n in z.namelist() if n.lower().startswith(prefix)]
     if not names:
         return None
-    df = pd.read_csv(io.BytesIO(z.read(names[0])), dtype=str, skipinitialspace=True)
+    try:
+        df = pd.read_csv(io.BytesIO(z.read(names[0])), dtype=str, skipinitialspace=True)
+    except pd.errors.EmptyDataError:  # NSE sometimes ships an empty file
+        return None
     df.columns = [c.strip() for c in df.columns]
     return df.apply(lambda s: s.str.strip())
 
