@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      PYTHONUNBUFFERED: "1"  # show progress in the log as it happens
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
