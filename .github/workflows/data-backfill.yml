@@ -2,6 +2,11 @@ name: Backfill data
 on:
   workflow_dispatch:
     inputs:
+      command:
+        description: backfill (download prices) or archive (re-read NSE corporate actions for stored days)
+        type: choice
+        options: [backfill, archive]
+        default: backfill
       start:
         description: First date (YYYY-MM-DD)
         required: true
@@ -29,8 +34,9 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: scripts/data_release.sh download
-      - run: python -m pipeline backfill "$START" "$END"
+      - run: python -m pipeline "$COMMAND" "$START" "$END"
         env:
+          COMMAND: ${{ inputs.command }}
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
       # Keep whatever was saved even if the run failed partway.
