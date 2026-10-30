@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "design-mockup",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "/Users/sourav/Documents/projects/stock-analyzer/design"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "web-dev",
+      "url": "http://localhost:5173",
+      "port": 5173
+    }
+  ]
+}

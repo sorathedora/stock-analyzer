@@ -41,6 +41,12 @@ def parse_purpose(purpose):
     return found or [("other", None)]
 
 
+def parse_date(s):
+    """NSE wrote dd/mm/yyyy until 2025 and yyyy-mm-dd after."""
+    old = pd.to_datetime(s, format="%d/%m/%Y", errors="coerce")
+    return old.fillna(pd.to_datetime(s, format="%Y-%m-%d", errors="coerce"))
+
+
 def _read(z, prefix):
     names = [n for n in z.namelist() if n.lower().startswith(prefix)]
     if not names:
@@ -67,7 +73,7 @@ def fetch(day):
         bc = bc[bc["SERIES"].isin(EQUITY_SERIES)]
         out["actions"] = pd.DataFrame({
             "symbol": bc["SYMBOL"],
-            "ex_date": pd.to_datetime(bc["EX_DT"], format="%d/%m/%Y", errors="coerce"),
+            "ex_date": parse_date(bc["EX_DT"]),
             "purpose": bc["PURPOSE"],
         }).dropna(subset=["ex_date"]).drop_duplicates()
 

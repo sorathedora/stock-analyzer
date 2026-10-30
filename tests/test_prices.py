@@ -53,6 +53,13 @@ def test_parse_purpose(purpose, expected):
     assert parse_purpose(purpose) == expected
 
 
+def test_archive_dates_in_both_formats():
+    from pipeline.archive import parse_date
+    got = parse_date(pd.Series(["28/10/2024", "2026-10-29", " "]))
+    assert got.tolist()[:2] == [pd.Timestamp("2024-10-28"), pd.Timestamp("2026-10-29")]
+    assert pd.isna(got.tolist()[2])
+
+
 def test_bonus_from_exchange_halves_earlier_prices():
     p = add_adjustment(rows([200.0, 202.0, 101.0, 103.0]), action("2025-01-03", "BONUS 1:1"))
     assert list(p["adj_source"].fillna("")) == ["", "", "exchange", ""]

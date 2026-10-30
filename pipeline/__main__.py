@@ -6,6 +6,7 @@
     python -m pipeline filings            # collect new results/shareholding filings
     python -m pipeline ratios             # rebuild ratios from stored data
     python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
+    python -m pipeline archive START END  # re-read NSE's archive for stored days
     python -m pipeline export [DIR]       # write companies.json for the web app
 """
 import argparse
@@ -97,6 +98,37 @@ def fetch_range(start, end, workers=1, skip_stored=False):
     return latest
 
 
+def refetch_archive(start, end):
+    """Re-download only NSE's archive (corporate actions, shares, PE) for
+    days already stored, e.g. after fixing how those files are read."""
+    stored = store.load_prices(since_year=pd.Timestamp(start).year)
+    nse = stored[(stored["exchange"] == "NSE") & stored["date"].between(start, end)]
+    days = sorted(nse["date"].unique())
+
+    def one(day):
+        try:
+            return day, archive.fetch(day)
+        except Exception as e:
+            return day, e
+
+    actions, pe = [], []
+    with ThreadPoolExecutor(max_workers=BACKFILL_WORKERS) as pool:
+        for day, arc in pool.map(one, days):
+            if isinstance(arc, Exception) or arc is None:
+                print(f"{pd.Timestamp(day).date()} skipped: {arc!r}")
+                continue
+            symbol_to_isin = nse[nse["date"] == day].drop_duplicates("symbol").set_index("symbol")["isin"]
+            if arc["actions"] is not None and not arc["actions"].empty:
+                actions.append(_with_isin(archive.expand_actions(arc["actions"]), symbol_to_isin))
+            if arc["pe"] is not None:
+                pe.append(_with_isin(arc["pe"], symbol_to_isin))
+    if actions:
+        store.save_actions(pd.concat(actions, ignore_index=True))
+    if pe:
+        store.save_nse_pe(pd.concat(pe, ignore_index=True))
+    print(f"{len(days)} days re-read: {sum(len(a) for a in actions)} corporate actions")
+
+
 def rebuild(latest):
     if latest is not None and latest[1] is not None and latest[2] is not None:
         day, nse, bse = latest
@@ -137,10 +169,17 @@ def main(argv=None):
     sub.add_parser("ratios")
     s = sub.add_parser("sheet")
     s.add_argument("path", nargs="?", default="google_sheet.xlsx")
+    a = sub.add_parser("archive")
+    a.add_argument("start")
+    a.add_argument("end")
     e = sub.add_parser("export")
     e.add_argument("out_dir", nargs="?", default="web/public/data")
     args = ap.parse_args(argv)
 
+    if args.cmd == "archive":
+        refetch_archive(args.start, args.end)
+        rebuild(None)
+        return
     if args.cmd == "export":
         export.write(args.out_dir)
         return
