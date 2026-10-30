@@ -6,6 +6,7 @@
     python -m pipeline filings            # collect new results/shareholding filings
     python -m pipeline ratios             # rebuild ratios from stored data
     python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
+    python -m pipeline export [DIR]       # write companies.json for the web app
 """
 import argparse
 import sys
@@ -13,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
-from . import archive, collect, google, prices, ratios, store, universe
+from . import archive, collect, export, google, prices, ratios, store, universe
 from .bhavcopy import combine, fetch_bse, fetch_nse
 
 HISTORY_YEARS = 6  # enough for 5-year returns
@@ -136,7 +137,13 @@ def main(argv=None):
     sub.add_parser("ratios")
     s = sub.add_parser("sheet")
     s.add_argument("path", nargs="?", default="google_sheet.xlsx")
+    e = sub.add_parser("export")
+    e.add_argument("out_dir", nargs="?", default="web/public/data")
     args = ap.parse_args(argv)
+
+    if args.cmd == "export":
+        export.write(args.out_dir)
+        return
 
     if args.cmd == "filings":
         collect.collect()

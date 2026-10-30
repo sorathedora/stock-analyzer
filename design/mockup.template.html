@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock analyzer mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f7f5;--panel:#ffffff;--rail:#f1f1ee;--ink:#17181a;--ink-2:#5b5e66;--ink-3:#8b8e96;
+  --line:#e7e6e1;--line-2:#d9d8d2;--hover:#f3f3f0;--accent:#2f5bea;--accent-wash:rgba(47,91,234,.08);
+  --up:#13834f;--down:#c8352b;--warn:#b7791f;--range:#e4e4df;--chart:#2f5bea;--chart-fill:rgba(47,91,234,.10);
+  --shadow:0 8px 28px rgba(20,20,20,.10),0 2px 6px rgba(20,20,20,.06);
+}
+:root[data-theme="dark"]{
+  --bg:#0f1012;--panel:#16171a;--rail:#121316;--ink:#ecedef;--ink-2:#a3a6ad;--ink-3:#71747b;
+  --line:#25272c;--line-2:#30333a;--hover:#1c1e22;--accent:#6b8cff;--accent-wash:rgba(107,140,255,.12);
+  --up:#3fbf7f;--down:#ff6b5e;--warn:#e0a84a;--range:#2a2d33;--chart:#6b8cff;--chart-fill:rgba(107,140,255,.14);
+  --shadow:0 8px 28px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Inter,system-ui,sans-serif;font-feature-settings:"cv11","ss01";-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11.5px}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line-2);border-radius:7px;height:30px;padding:0 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button:hover{background:var(--hover)}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);height:100vh}
+.rail{background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;gap:14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;padding:0 6px}
+.brand i{width:22px;height:22px;border-radius:6px;background:var(--accent);display:inline-block}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);background:var(--panel);border-radius:8px;height:32px;padding:0 10px;color:var(--ink-3);cursor:pointer}
+.search kbd{margin-left:auto}
+kbd{font:500 11px Inter;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--ink-2);background:var(--panel)}
+.sec{font-size:11px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;padding:0 8px;margin-bottom:4px}
+.nav a{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;color:var(--ink-2);text-decoration:none;cursor:pointer}
+.nav a:hover{background:var(--hover)}
+.nav a.on{background:var(--accent-wash);color:var(--accent);font-weight:500}
+.nav a span{color:var(--ink-3);font-size:12px}
+.fresh{margin-top:auto;font-size:11.5px;color:var(--ink-3);padding:0 8px;line-height:1.6}
+.fresh b{color:var(--ink-2);font-weight:500}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:1px;margin-right:5px}
+.main{display:flex;flex-direction:column;min-width:0}
+.top{padding:16px 20px 10px;display:flex;align-items:center;gap:12px}
+.top h1{font-size:18px;font-weight:600;margin:0}
+.top .meta{color:var(--ink-3)}
+.top .right{margin-left:auto;display:flex;gap:8px}
+.bar{padding:0 20px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;padding:2px;background:var(--panel)}
+.seg b{font-weight:500;padding:4px 10px;border-radius:6px;color:var(--ink-2);cursor:pointer}
+.seg b.on{background:var(--ink);color:var(--panel)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border:1px solid var(--line-2);border-radius:7px;color:var(--ink-2);background:var(--panel)}
+.chip x{color:var(--ink-3);cursor:pointer}
+.query{flex:1;min-width:260px;display:flex;align-items:center;gap:8px;height:30px;border:1px solid var(--line-2);border-radius:8px;padding:0 10px;background:var(--panel)}
+.query input{border:0;outline:0;background:transparent;flex:1;font:12.5px "JetBrains Mono",monospace;color:var(--ink)}
+.query .count{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.tablewrap{flex:1;overflow:auto;margin:0 20px 20px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:separate;border-spacing:0;width:100%}
+th{position:sticky;top:0;z-index:2;background:var(--panel);text-align:right;font-weight:500;color:var(--ink-3);font-size:12px;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+th:hover{color:var(--ink)}
+th.l,td.l{text-align:left}
+td{padding:0 12px;height:44px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+tr{transition:background 80ms}
+tbody tr:hover td{background:var(--hover)}
+tbody tr.sel td{background:var(--accent-wash)}
+tbody tr.active td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+td.co,th.co{position:sticky;left:0;z-index:1;background:var(--panel)}
+th.co{z-index:3}
+.co .n{font-weight:500;max-width:210px;overflow:hidden;text-overflow:ellipsis}
+.co .s{color:var(--ink-3);font-size:11.5px;margin-top:1px}
+.up{color:var(--up)}.down{color:var(--down)}
+.rng{width:96px;height:14px;position:relative;display:inline-block;vertical-align:middle}
+.rng::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--range);border-radius:2px}
+.rng i{position:absolute;top:3px;width:8px;height:8px;border-radius:50%;background:var(--ink);margin-left:-4px}
+.pct{display:inline-grid;grid-template-columns:auto 44px;align-items:center;gap:8px}
+.pbar{height:4px;background:var(--range);border-radius:2px;position:relative}
+.pbar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--ink-3)}
+.pbar u{position:absolute;top:-3px;width:1px;height:10px;background:var(--ink-2)}
+.trust{width:6px;height:6px;border-radius:50%;display:inline-block;margin-left:6px;vertical-align:2px}
+.cb{width:14px;height:14px;border:1.5px solid var(--line-2);border-radius:4px;display:inline-block;vertical-align:-2px;cursor:pointer}
+tr.sel .cb{background:var(--accent);border-color:var(--accent)}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:440px;background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(100%);transition:transform 160ms ease;display:flex;flex-direction:column;z-index:20}
+.drawer.open{transform:none}
+.dh{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.dh .t{display:flex;align-items:flex-start;gap:8px}
+.dh h2{font-size:16px;margin:0;font-weight:600}
+.dh .px{font-size:26px;font-weight:600;margin-top:8px}
+.db{padding:14px 18px;overflow:auto;flex:1}
+.ranges{display:flex;gap:2px;margin-bottom:6px}
+.ranges b{font-weight:500;font-size:12px;padding:3px 8px;border-radius:6px;color:var(--ink-3);cursor:pointer}
+.ranges b.on{background:var(--hover);color:var(--ink)}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:14px}
+.kv div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
+.kv span{color:var(--ink-3)}
+.vs{margin-top:16px}
+.vs h3,.db h3{font-size:12px;font-weight:500;color:var(--ink-3);margin:14px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+.vsrow{display:grid;grid-template-columns:88px 60px 1fr;align-items:center;gap:10px;padding:6px 0}
+.vsrow .lab{color:var(--ink-2)}
+.track{height:6px;background:var(--range);border-radius:3px;position:relative}
+.track u{position:absolute;top:-4px;width:2px;height:14px;background:var(--ink-3);border-radius:1px}
+.track i{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:var(--accent);margin-left:-6px;border:2px solid var(--panel)}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--panel);padding:6px 9px;border-radius:7px;font-size:12px;z-index:50;display:none;white-space:nowrap}
+.tray{position:fixed;left:50%;bottom:18px;transform:translate(-50%,140%);transition:transform 160ms ease;background:var(--ink);color:var(--panel);border-radius:12px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);z-index:15}
+.tray.show{transform:translate(-50%,0)}
+.tray button{border-color:transparent;background:rgba(255,255,255,.12);color:inherit}
+:root[data-theme="dark"] .tray button{background:rgba(0,0,0,.12)}
+.pal{position:fixed;inset:0;background:rgba(10,10,12,.35);display:none;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:40}
+.pal.open{display:flex}
+.pbox{width:600px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.pbox input{width:100%;border:0;border-bottom:1px solid var(--line);padding:14px 16px;font:15px Inter;background:transparent;color:var(--ink);outline:0}
+.pres div{padding:9px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.pres div.on{background:var(--hover)}
+.pres .k{margin-left:auto;color:var(--ink-3);font-size:12px}
+.sample{position:fixed;left:244px;bottom:8px;font-size:11px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><i></i>Stock analyzer</div>
+    <div class="search" id="openPal"><span>Search</span><kbd>⌘K</kbd></div>
+    <div>
+      <div class="sec">Watchlists</div>
+      <nav class="nav">
+        <a class="on">Core holdings <span id="wlCount">18</span></a>
+        <a>IT services <span>10</span></a>
+        <a>Dividend ideas <span>24</span></a>
+        <a>Turnarounds <span>7</span></a>
+        <a style="color:var(--ink-3)">+ New watchlist</a>
+      </nav>
+    </div>
+    <div>
+      <div class="sec">Explore</div>
+      <nav class="nav">
+        <a>All companies <span>4,930</span></a>
+        <a>Industries <span>22</span></a>
+        <a>Screens</a>
+      </nav>
+    </div>
+    <div class="fresh">
+      <div><span class="dot" style="background:var(--up)"></span>Prices <b>29 Oct close</b></div>
+      <div><span class="dot" style="background:var(--up)"></span>Filings <b>checked 6 min ago</b></div>
+      <div style="margin-top:8px"><a id="theme" style="cursor:pointer;color:var(--ink-2)">Toggle dark mode</a></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <h1>Core holdings</h1>
+      <span class="meta">18 companies · NSE close 29 Oct</span>
+      <div class="right"><button>Import ISINs</button><button>Export</button><button style="background:var(--ink);color:var(--panel);border-color:var(--ink)">+ Add company</button></div>
+    </div>
+    <div class="bar">
+      <div class="seg" id="presets"><b class="on">Overview</b><b>Valuation</b><b>Quality</b><b>Growth</b><b>Ownership</b><b>Technicals</b><b>Custom</b></div>
+      <span class="chip">Market cap &gt; ₹50,000 Cr <x>✕</x></span>
+      <div class="query"><span class="mono" style="color:var(--ink-3)">ƒ</span><input id="q" value="pe < 30" spellcheck="false"><span class="count" id="qcount"></span></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th class="l co" style="width:250px"><span class="cb" style="margin-right:10px"></span>Company</th>
+          <th data-k="close">Price</th><th data-k="change_pct">Day</th><th class="l">1 year</th><th data-k="ret_1y">1Y</th>
+          <th class="l">52-week range</th><th data-k="market_cap_cr">Market cap</th><th data-k="pe">PE · vs industry</th><th data-k="ret_1m">1M</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="dh">
+    <div class="t"><div style="flex:1"><h2 id="dName"></h2><div class="mono" style="color:var(--ink-3);margin-top:2px" id="dSub"></div></div>
+      <button id="dClose" aria-label="Close" style="width:30px;padding:0;justify-content:center">✕</button></div>
+    <div class="px num" id="dPx"></div>
+  </div>
+  <div class="db">
+    <div class="ranges"><b>1M</b><b>6M</b><b class="on">1Y</b><b>3Y</b><b>5Y</b><b style="margin-left:auto">PE band</b></div>
+    <svg id="dChart" width="404" height="170"></svg>
+    <div class="kv num" id="dKv"></div>
+    <div class="vs"><h3>Where it sits in its industry</h3><div id="dVs"></div></div>
+    <h3>Peers · PE vs 1-year return</h3>
+    <svg id="dScatter" width="404" height="220"></svg>
+    <div style="display:flex;gap:8px;margin-top:14px"><button style="flex:1;justify-content:center">Open full page →</button><button>Compare</button></div>
+  </div>
+</div>
+
+<div class="tray" id="tray"><span id="trayTxt"></span><button>Compare side by side</button><button id="trayClear">Clear</button></div>
+<div class="pal" id="pal"><div class="pbox"><input id="palIn" placeholder="Search 4,930 companies, or type a command"><div class="pres" id="pres"></div></div></div>
+<div class="tip" id="tip"></div>
+<div class="sample">Mockup · real NSE data from 29 Oct 2026 · industry percentile bars use the IT sample</div>
+
+<script>
+const DATA = __DATA__;
+const rows = DATA.rows, it = DATA.it;
+const $ = s => document.querySelector(s);
+const fmt = (v, d = 2) => v == null ? "—" : v.toLocaleString("en-IN", {minimumFractionDigits: d, maximumFractionDigits: d});
+const crore = v => v == null ? "—" : v >= 1e5 ? fmt(v / 1e5, 2) + " L Cr" : fmt(v, 0) + " Cr";
+const sign = v => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v), 1) + "%";
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const itPE = it.map(r => r.pe).sort((a, b) => a - b);
+const median = a => a[Math.floor(a.length / 2)];
+const pctile = (arr, v) => Math.round(100 * arr.filter(x => x <= v).length / arr.length);
+let sortK = "market_cap_cr", sortDir = -1, active = null;
+const sel = new Set();
+
+function spark(vals, w = 92, h = 26) {
+  const mn = Math.min(...vals), mx = Math.max(...vals), up = vals[vals.length - 1] >= vals[0];
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1) * w).toFixed(1)},${(h - 2 - (v - mn) / (mx - mn || 1) * (h - 4)).toFixed(1)}`).join(" ");
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="var(--${up ? "up" : "down"})" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+function matches(r) {
+  const q = $("#q").value.trim().toLowerCase();
+  if (!q) return true;
+  try {
+    const expr = q.replace(/\band\b/g, "&&").replace(/\bor\b/g, "||").replace(/([a-z_][a-z0-9_]*)/g, m => (m in r ? `r.${m}` : m));
+    return !!Function("r", `return (${expr})`)(r);
+  } catch { return true; }
+}
+function render() {
+  const list = rows.filter(r => r.market_cap_cr > 50000).filter(matches)
+    .sort((a, b) => ((a[sortK] ?? -1e18) - (b[sortK] ?? -1e18)) * sortDir);
+  $("#qcount").textContent = `${list.length} of ${rows.length} match`;
+  $("#rows").innerHTML = list.map(r => {
+    const pos = r.high_52w > r.low_52w ? (r.close - r.low_52w) / (r.high_52w - r.low_52w) * 100 : 50;
+    const isIT = r.industry === "Information Technology";
+    const pp = r.pe && isIT ? pctile(itPE, r.pe) : null;
+    return `<tr data-s="${r.nse_symbol}" class="${sel.has(r.nse_symbol) ? "sel" : ""} ${active === r.nse_symbol ? "active" : ""}">
+      <td class="l co"><div style="display:flex;align-items:center;gap:10px"><span class="cb" data-cb></span><div><div class="n">${r.name.replace(" Limited", "")}</div><div class="s"><span class="mono">${r.nse_symbol}</span> · ${r.industry ?? ""}</div></div></div></td>
+      <td class="num">${fmt(r.close)}</td>
+      <td class="num ${cls(r.change_pct)}">${sign(r.change_pct)}</td>
+      <td class="l">${spark(r.spark)}</td>
+      <td class="num ${cls(r.ret_1y)}">${sign(r.ret_1y)}</td>
+      <td class="l"><span class="rng" data-tip="Low ${fmt(r.low_52w)} · High ${fmt(r.high_52w)} · ${fmt(Math.abs(r.pct_from_52w_high), 1)}% below high"><i style="left:${pos}%"></i></span></td>
+      <td class="num">₹${crore(r.market_cap_cr)}</td>
+      <td class="num"><span class="pct">${fmt(r.pe, 1)}<span class="pbar" data-tip="${pp == null ? "Industry percentile shown for IT sample only" : `${pp}th percentile among ${itPE.length} IT companies · median ${fmt(median(itPE), 1)}`}">${pp == null ? "" : `<i style="width:${pp}%"></i><u style="left:50%"></u>`}</span></span><span class="trust" style="background:var(--warn)" data-tip="Single source: Google Finance EPS · cross-check pending own filings"></span></td>
+      <td class="num ${cls(r.ret_1m)}">${sign(r.ret_1m)}</td>
+    </tr>`;
+  }).join("");
+}
+function lineChart(svg, series) {
+  const w = +svg.getAttribute("width"), h = +svg.getAttribute("height"), pad = 40;
+  const vals = series.map(p => p[1]), mn = Math.min(...vals), mx = Math.max(...vals);
+  const x = i => i / (series.length - 1) * (w - pad), y = v => 8 + (h - 30) * (1 - (v - mn) / (mx - mn));
+  const line = series.map((p, i) => `${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+  const grid = [0, .5, 1].map(t => { const v = mn + (mx - mn) * t; return `<line x1="0" x2="${w - pad}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${w - pad + 4}" y="${y(v) + 4}" font-size="10.5" fill="var(--ink-3)">${Math.round(v)}</text>`; }).join("");
+  svg.innerHTML = `${grid}<polygon points="0,${h - 22} ${line} ${w - pad},${h - 22}" fill="var(--chart-fill)"/><polyline points="${line}" fill="none" stroke="var(--chart)" stroke-width="2" stroke-linejoin="round"/>
+    <text x="0" y="${h - 6}" font-size="10.5" fill="var(--ink-3)">${series[0][0].slice(0, 7)}</text><text x="${w - pad}" y="${h - 6}" font-size="10.5" fill="var(--ink-3)" text-anchor="end">${series[series.length - 1][0].slice(0, 7)}</text>
+    <line id="xh" y1="8" y2="${h - 22}" stroke="var(--ink-3)" stroke-dasharray="2 2" visibility="hidden"/><circle id="xd" r="4" fill="var(--chart)" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`;
+  svg.onmousemove = e => {
+    const r = svg.getBoundingClientRect(), i = Math.max(0, Math.min(series.length - 1, Math.round((e.clientX - r.left) / (w - pad) * (series.length - 1))));
+    const p = series[i];
+    svg.querySelector("#xh").setAttribute("x1", x(i)); svg.querySelector("#xh").setAttribute("x2", x(i)); svg.querySelector("#xh").setAttribute("visibility", "visible");
+    const d = svg.querySelector("#xd"); d.setAttribute("cx", x(i)); d.setAttribute("cy", y(p[1])); d.setAttribute("visibility", "visible");
+    tip(e, `${p[0]} · ₹${fmt(p[1])}`);
+  };
+  svg.onmouseleave = () => { svg.querySelectorAll("#xh,#xd").forEach(n => n.setAttribute("visibility", "hidden")); $("#tip").style.display = "none"; };
+}
+function scatter(svg, sym) {
+  const w = +svg.getAttribute("width"), h = +svg.getAttribute("height"), l = 34, b = 26;
+  const xs = it.map(r => r.pe), ys = it.map(r => r.ret_1y);
+  const xmx = Math.min(80, Math.max(...xs)), ymn = Math.min(...ys), ymx = Math.max(...ys);
+  const X = v => l + (Math.min(v, xmx) / xmx) * (w - l - 8), Y = v => 6 + (h - b - 6) * (1 - (v - ymn) / (ymx - ymn));
+  const medX = X(median(itPE));
+  let s = `<line x1="${l}" x2="${w - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line-2)"/><line x1="${medX}" x2="${medX}" y1="6" y2="${h - b}" stroke="var(--line-2)" stroke-dasharray="3 3"/>
+    <text x="${medX + 4}" y="16" font-size="10.5" fill="var(--ink-3)">industry median PE ${fmt(median(itPE), 1)}</text>
+    <text x="${w - 8}" y="${h - 6}" font-size="10.5" fill="var(--ink-3)" text-anchor="end">PE →</text><text x="2" y="12" font-size="10.5" fill="var(--ink-3)">1Y %</text>`;
+  it.forEach(r => { const me = r.nse_symbol === sym; s += `<circle cx="${X(r.pe)}" cy="${Y(r.ret_1y)}" r="${me ? 6 : 4}" fill="${me ? "var(--accent)" : "var(--ink-3)"}" fill-opacity="${me ? 1 : .45}" stroke="var(--panel)" stroke-width="2" data-tip="${r.name.replace(" Limited", "")} · PE ${fmt(r.pe, 1)} · 1Y ${sign(r.ret_1y)}"/>`; });
+  const me = it.find(r => r.nse_symbol === sym);
+  if (me) s += `<text x="${X(me.pe) + 9}" y="${Y(me.ret_1y) + 4}" font-size="11.5" font-weight="500" fill="var(--ink)">${sym}</text>`;
+  svg.innerHTML = s;
+}
+function openDrawer(sym) {
+  const r = rows.find(x => x.nse_symbol === sym); active = sym;
+  $("#dName").textContent = r.name; $("#dSub").textContent = `NSE: ${r.nse_symbol} · ${r.industry ?? ""}`;
+  $("#dPx").innerHTML = `₹${fmt(r.close)} <span class="${cls(r.change_pct)}" style="font-size:14px;font-weight:500">${sign(r.change_pct)} today</span>`;
+  const series = sym === "INFY" ? DATA.infy : r.spark.map((v, i) => [i === 0 ? "1y ago" : i === r.spark.length - 1 ? "today" : "", v]);
+  lineChart($("#dChart"), series);
+  $("#dKv").innerHTML = [["Market cap", "₹" + crore(r.market_cap_cr)], ["PE", fmt(r.pe, 1)], ["52W high", fmt(r.high_52w)], ["52W low", fmt(r.low_52w)], ["1M", sign(r.ret_1m)], ["1Y", sign(r.ret_1y)]]
+    .map(([k, v]) => `<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join("");
+  const isIT = r.industry === "Information Technology";
+  const bars = [["PE", r.pe, itPE, 1], ["1Y return", r.ret_1y, it.map(x => x.ret_1y).sort((a, b) => a - b), 1], ["Market cap", r.market_cap_cr, it.map(x => x.market_cap_cr).sort((a, b) => a - b), 0]];
+  $("#dVs").innerHTML = isIT ? bars.map(([k, v, arr, d]) => { const p = pctile(arr, v); return `<div class="vsrow"><span class="lab">${k}</span><span class="num">${k === "Market cap" ? crore(v) : k === "PE" ? fmt(v, 1) : sign(v)}</span><span class="track" data-tip="${p}th percentile of ${arr.length} IT companies"><u style="left:50%"></u><i style="left:${p}%"></i></span></div>`; }).join("") + `<div style="color:var(--ink-3);font-size:11.5px;margin-top:4px">Dot = this company · tick = industry median</div>`
+    : `<div style="color:var(--ink-3)">Open an IT company (TCS, Infosys, HCL…) to see this in the mockup.</div>`;
+  scatter($("#dScatter"), isIT ? sym : "");
+  $("#drawer").classList.add("open"); render();
+}
+function tip(e, t) { const el = $("#tip"); el.textContent = t; el.style.display = "block"; el.style.left = e.clientX + 12 + "px"; el.style.top = e.clientY + 14 + "px"; }
+document.addEventListener("mousemove", e => { const t = e.target.closest("[data-tip]"); if (t && !e.target.closest("#dChart")) tip(e, t.dataset.tip); else if (!e.target.closest("#dChart")) $("#tip").style.display = "none"; });
+$("#rows").addEventListener("click", e => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  if (e.target.closest("[data-cb]")) { const s = tr.dataset.s; sel.has(s) ? sel.delete(s) : sel.add(s); updateTray(); render(); return; }
+  openDrawer(tr.dataset.s);
+});
+function updateTray() { $("#trayTxt").textContent = `${sel.size} selected`; $("#tray").classList.toggle("show", sel.size >= 2); }
+$("#trayClear").onclick = () => { sel.clear(); updateTray(); render(); };
+$("#dClose").onclick = () => { $("#drawer").classList.remove("open"); active = null; render(); };
+document.querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = sortK === k ? -sortDir : -1; sortK = k; render(); });
+$("#q").addEventListener("input", render);
+document.querySelectorAll("#presets b").forEach(b => b.onclick = () => { document.querySelectorAll("#presets b").forEach(x => x.classList.remove("on")); b.classList.add("on"); });
+$("#theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "dark" ? "" : "dark"; if (active) openDrawer(active); };
+const pal = $("#pal"), palIn = $("#palIn");
+let pi = 0;
+function palRender() {
+  const q = palIn.value.toLowerCase();
+  const hits = rows.filter(r => !q || r.name.toLowerCase().includes(q) || r.nse_symbol.toLowerCase().includes(q)).slice(0, 7);
+  const cmds = [["Add to watchlist", "W"], ["Compare selected", "C"], ["Toggle dark mode", "D"]].filter(c => !q || c[0].toLowerCase().includes(q));
+  $("#pres").innerHTML = hits.map((r, i) => `<div data-s="${r.nse_symbol}" class="${i === pi ? "on" : ""}"><b style="font-weight:500">${r.name.replace(" Limited", "")}</b><span class="mono" style="color:var(--ink-3)">${r.nse_symbol}</span><span class="k num">₹${fmt(r.close)} <span class="${cls(r.change_pct)}">${sign(r.change_pct)}</span></span></div>`).join("") + cmds.map(c => `<div style="color:var(--ink-2)">${c[0]}<span class="k"><kbd>${c[1]}</kbd></span></div>`).join("");
+}
+function openPal() { pal.classList.add("open"); palIn.value = ""; pi = 0; palRender(); palIn.focus(); }
+$("#openPal").onclick = openPal;
+pal.onclick = e => { if (e.target === pal) pal.classList.remove("open"); const d = e.target.closest("[data-s]"); if (d) { pal.classList.remove("open"); openDrawer(d.dataset.s); } };
+palIn.oninput = () => { pi = 0; palRender(); };
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPal(); return; }
+  if (pal.classList.contains("open")) {
+    const items = [...document.querySelectorAll("#pres [data-s]")];
+    if (e.key === "Escape") pal.classList.remove("open");
+    if (e.key === "ArrowDown") { pi = Math.min(pi + 1, items.length - 1); palRender(); }
+    if (e.key === "ArrowUp") { pi = Math.max(pi - 1, 0); palRender(); }
+    if (e.key === "Enter" && items[pi]) { pal.classList.remove("open"); openDrawer(items[pi].dataset.s); }
+    return;
+  }
+  if (document.activeElement.tagName === "INPUT") return;
+  const trs = [...document.querySelectorAll("#rows tr")], idx = trs.findIndex(t => t.dataset.s === active);
+  if (e.key === "j" || e.key === "ArrowDown") { const n = trs[Math.min(idx + 1, trs.length - 1)]; if (n) openDrawer(n.dataset.s); }
+  if (e.key === "k" || e.key === "ArrowUp") { const n = trs[Math.max(idx - 1, 0)]; if (n) openDrawer(n.dataset.s); }
+  if (e.key === "Escape") $("#dClose").click();
+  if (e.key === "/") { e.preventDefault(); $("#q").focus(); }
+});
+render();
+</script>
+</body>
+</html>
