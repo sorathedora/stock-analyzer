@@ -14,6 +14,7 @@ from . import filings
 
 # A PE more than this far from Google Finance's is flagged for review.
 PE_MISMATCH_PCT = 10
+EXTREME_PE = 200
 
 
 def _pick_basis(results):
@@ -130,6 +131,9 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
     # A loss makes PE meaningless; show it blank rather than negative.
     eps_used = eps_f.where(pe_f.notna(), eps_g)
     out.loc[eps_used <= 0, "pe"] = np.nan
+    out["pe"] = pd.to_numeric(out["pe"])
+    # Near-zero earnings give PEs in the hundreds or thousands; say so.
+    out["pe_note"] = np.where(out["pe"] > EXTREME_PE, "earnings near zero", None)
     out["earnings_yield_pct"] = 100 / out["pe"]
 
     if shareholding is not None and not shareholding.empty:
