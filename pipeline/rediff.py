@@ -61,6 +61,10 @@ def _v(rows, label, i=0):
     return None if not vals or i >= len(vals) or pd.isna(vals[i]) else float(vals[i])
 
 
+def _norm(s):
+    return re.sub(r"(limited|ltd)$", "", re.sub(r"[^a-z0-9]+", "", s.lower()))
+
+
 def fetch_main(url):
     """BSE code, NSE symbol and industry from a company's main page."""
     main = get(url, html=True)
@@ -68,13 +72,15 @@ def fetch_main(url):
         return None
     page = main.decode("utf-8", "replace")
     codes = _CODES.search(page)
-    # Two "NEWS FOR" headings: the company's own news, then its industry's.
-    headings = _INDUSTRY.findall(page)
+    # "NEWS FOR …" headings: the company's own news (larger companies only),
+    # then its industry's. Take the last one that isn't the company's name.
+    slug = _norm(url.rstrip("/").split("/")[-2].replace("-", " "))
+    headings = [h for h in (html.unescape(x).strip() for x in _INDUSTRY.findall(page)) if _norm(h) != slug]
     return {
         "rediff_url": url,
         "bse_code": codes.group(1) if codes else None,
         "nse_symbol": (codes.group(2) or None) if codes else None,
-        "industry": html.unescape(headings[-1]).strip() if len(headings) >= 2 else None,
+        "industry": headings[-1] if headings else None,
     }
 
 

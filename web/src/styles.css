@@ -262,3 +262,8 @@ kbd {
 .hist .slider input::-moz-range-thumb { pointer-events: all; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); cursor: grab; }
 .hist .ends { display: flex; justify-content: space-between; font-size: 11.5px; margin-top: 2px; }
 .rankmode { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
+
+/* Short or narrow windows: never squeeze the table to nothing; scroll the page instead. */
+.main > .top, .main > .toolbar, .main > .filterbar, .main > .banner { flex-shrink: 0; }
+.main > .tablewrap { min-height: 320px; }
+.screen { overflow-y: auto; }

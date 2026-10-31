@@ -135,7 +135,7 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   };
 
   return (
-    <div className="main" style={{ height: "100%" }}>
+    <div className="main screen" style={{ height: "100%" }}>
       <div className="top">
         <h1>{title}</h1>
         {meta && <span className="meta">{meta}</span>}

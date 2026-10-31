@@ -34,5 +34,12 @@ jobs:
         timeout-minutes: 320
         env:
           GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
+      # Industry of every company (one page each); also catches pages whose
+      # annual figures are missing.
       - if: success() || failure()
-        run: scripts/data_release.sh upload annual_reports.parquet 'ratios.*' google_history.parquet
+        run: python -m pipeline industries
+        timeout-minutes: 120
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
+      - if: success() || failure()
+        run: scripts/data_release.sh upload annual_reports.parquet industries.parquet 'ratios.*' google_history.parquet
