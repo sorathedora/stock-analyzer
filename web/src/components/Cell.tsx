@@ -4,7 +4,7 @@ import { rank, type Company, type Dataset } from "../data/store";
 import { PctBar, RangeBar, Spark, TrustDot } from "./visuals";
 
 /** Metrics whose cells also show where the company sits in its industry. */
-const RANKED = new Set(["pe", "pb", "roe_pct", "dividend_yield_pct", "ebitda_margin_q_pct", "debt_to_equity", "net_margin_q_pct", "earnings_yield_pct"]);
+const RANKED = new Set(["pe", "pb", "peg", "roe_pct", "roce_pct", "ev_ebitda", "dividend_yield_pct", "ebitda_margin_q_pct", "debt_to_equity", "net_margin_q_pct", "earnings_yield_pct"]);
 
 export function cellAlign(key: string) {
   return key === "spark" || key === "range" ? "l" : "";

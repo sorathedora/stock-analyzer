@@ -123,6 +123,19 @@ six-month period. Field names cover both Ind AS and non-Ind AS filers.
 | Debt to equity | (long-term + short-term borrowings) ÷ book value |
 | ROE | TTM profit ÷ book value. Until four quarters exist, year-to-date profit annualised (labelled) |
 | EV | market cap + debt − cash (cash + bank balances + current investments) |
+| ROCE | a year of EBIT (PBT + finance cost) ÷ (equity + debt). Not shown for banks/NBFCs |
+| EV / EBITDA | EV ÷ a year of EBITDA. Not shown for banks/NBFCs or negative EBITDA |
+
+"A year" means the last four quarters when on file, else the year to date
+annualised.
+
+### Industry PE and PEG (no filings needed)
+- **Industry PE**: median PE of the actively traded companies in the same
+  industry (needs 5 or more with a PE).
+- **PEG** = PE ÷ yearly EPS growth (%). Until a year of the company's own
+  results is on file, growth compares today's EPS with EPS implied by NSE's
+  own published PE on 21 Mar 2025 (split-adjusted close ÷ NSE PE that day).
+  Blank when EPS fell.
 | Free cash flow (YTD) | cash from operations − capex, financial year to date |
 | Current ratio | current assets ÷ current liabilities |
 

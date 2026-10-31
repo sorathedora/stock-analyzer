@@ -142,16 +142,28 @@ def rebuild(latest):
     m = store.save_metrics(prices.metrics(p, actions), u)
     prices.adjustments(p, actions).to_csv(store.DATA / "adjustments.csv", index=False)
     print(f"{len(u)} companies, metrics as of {m['as_of'].max().date()}")
-    build_ratios(m)
+    build_ratios(m, eps_history(p, actions, links))
 
 
-def build_ratios(price_metrics=None):
+def eps_history(p=None, actions=None, links=None):
+    """EPS implied by NSE's published PE (last day: March 2025), for PEG."""
+    nse_pe = store.load(store.NSE_PE)
+    if nse_pe is None or nse_pe.empty:
+        return None
+    if p is None:
+        p, actions, links = prices.link_isins(store.load_prices(since_year=nse_pe["date"].max().year), store.load_actions())
+    nse_pe = nse_pe.assign(isin=nse_pe["isin"].replace(links or {}))
+    return ratios.eps_then(nse_pe, prices.add_adjustment(p, actions))
+
+
+def build_ratios(price_metrics=None, history=None):
     if price_metrics is None:
         price_metrics = pd.read_parquet(store.METRICS)
+        history = eps_history()
     g = google.fetch()
     if g is not None:
         store.save_google(g.assign(date=price_metrics["as_of"].max()))
-    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING))
+    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history)
     store.save_ratios(r)
     counts = r["pe_source"].value_counts().to_dict()
     print(f"ratios for {len(r)} companies; PE from {counts}; checks {r['pe_check'].value_counts().to_dict()}")

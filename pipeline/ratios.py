@@ -28,10 +28,35 @@ def _owners_profit(df):
     return df["net_profit_owners"].where(df["net_profit_owners"].fillna(0) != 0, df["net_profit"])
 
 
+def _ebit(df):
+    return df["profit_before_tax"] + df["finance_cost"].fillna(0)
+
+
+def _ebitda(df):
+    return _ebit(df) + df["depreciation"].fillna(0) - df["other_income"].fillna(0)
+
+
+def eps_then(nse_pe, adjusted_prices):
+    """EPS on the last day NSE published PE (March 2025), per today's share.
+
+    NSE's PE file gives price ÷ EPS on that day; dividing that day's
+    split-adjusted close by it gives EPS on today's share basis.
+    """
+    if nse_pe is None or nse_pe.empty:
+        return pd.DataFrame(columns=["eps_then", "eps_then_date"])
+    day = nse_pe["date"].max()
+    pe = nse_pe[(nse_pe["date"] == day) & (nse_pe["nse_pe"] > 0)].dropna(subset=["isin"]).drop_duplicates("isin")
+    px = adjusted_prices[adjusted_prices["date"] == day].drop_duplicates("isin").set_index("isin")
+    out = pe.set_index("isin")[["nse_pe"]].join(px[["close", "adj"]], how="inner")
+    return pd.DataFrame({"eps_then": out["close"] * out["adj"] / out["nse_pe"], "eps_then_date": day})
+
+
 def ttm(results):
     """Trailing-twelve-month profit and EPS from four consecutive quarters."""
     q = _pick_basis(results[results["period"] == "quarter"]).copy()
+    q = q.reindex(columns=q.columns.union(["profit_before_tax", "finance_cost", "depreciation", "other_income"]))
     q["profit"] = _owners_profit(q)
+    q["ebit"], q["ebitda"] = _ebit(q), _ebitda(q)
     q = q.sort_values("period_end").drop_duplicates(["isin", "period_end"], keep="last")
     rows = []
     for isin, g in q.groupby("isin"):
@@ -42,8 +67,9 @@ def ttm(results):
         if consecutive:
             rows.append({"isin": isin, "ttm_end": ends[-1], "ttm_profit": last4["profit"].sum(),
                          "ttm_eps": last4["eps_diluted"].fillna(last4["eps_basic"]).sum(),
-                         "ttm_revenue": last4["revenue"].sum()})
-    return pd.DataFrame(rows, columns=["isin", "ttm_end", "ttm_profit", "ttm_eps", "ttm_revenue"])
+                         "ttm_revenue": last4["revenue"].sum(),
+                         "ttm_ebit": last4["ebit"].sum(), "ttm_ebitda": last4["ebitda"].sum()})
+    return pd.DataFrame(rows, columns=["isin", "ttm_end", "ttm_profit", "ttm_eps", "ttm_revenue", "ttm_ebit", "ttm_ebitda"])
 
 
 def latest_rows(results):
@@ -55,7 +81,7 @@ def latest_rows(results):
     return quarter, ytd, year
 
 
-def compute(price_metrics, results=None, google=None, shareholding=None):
+def compute(price_metrics, results=None, google=None, shareholding=None, eps_history=None):
     m = price_metrics.set_index("isin")
     out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
     shares = m.get("shares")
@@ -79,8 +105,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
         out["latest_quarter"] = q["period_end"]
         out["revenue_q_cr"] = q["revenue"] / 1e7
         out["net_profit_q_cr"] = _owners_profit(q) / 1e7
-        ebitda = q["profit_before_tax"] + q["finance_cost"].fillna(0) + q["depreciation"].fillna(0) - q["other_income"].fillna(0)
-        out["ebitda_margin_q_pct"] = ebitda / q["revenue"] * 100
+        out["ebitda_margin_q_pct"] = _ebitda(q) / q["revenue"] * 100
         # Interest is a lender's main cost, so EBITDA says nothing for banks and NBFCs.
         is_bank = q["is_bank"] if "is_bank" in q else pd.Series(False, index=q.index)
         lender = (out["industry"] == "Financial Services") | is_bank.reindex(out.index).fillna(False).astype(bool)
@@ -108,6 +133,14 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
         out["roe_pct"] = annual_profit / equity * 100
         out["roe_basis"] = np.where(t["ttm_profit"].reindex(out.index).notna(), "TTM",
                                     np.where(annual_profit.notna(), "annualised YTD", None))
+        # ROCE and EV/EBITDA need a year of operating profit: last four
+        # quarters when on file, else the year to date annualised.
+        annual_ebit = t["ttm_ebit"].reindex(out.index).fillna(_ebit(b) * 12 / months)
+        annual_ebitda = t["ttm_ebitda"].reindex(out.index).fillna(_ebitda(b) * 12 / months)
+        capital_employed = equity + debt
+        out["roce_pct"] = (annual_ebit / capital_employed * 100).where(capital_employed > 0)
+        out["ev_ebitda"] = (out["ev_cr"] * 1e7 / annual_ebitda).where(annual_ebitda > 0)
+        out.loc[lender, ["roce_pct", "ev_ebitda"]] = np.nan
         out["cash_from_operations_ytd_cr"] = b["cash_from_operations"] / 1e7
         out["free_cash_flow_ytd_cr"] = (b["cash_from_operations"] - b["capex"].fillna(0)) / 1e7
 
@@ -141,6 +174,26 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
     # Near-zero earnings give PEs in the hundreds or thousands; say so.
     out["pe_note"] = np.where(out["pe"] > EXTREME_PE, "earnings near zero", None)
     out["earnings_yield_pct"] = 100 / out["pe"]
+
+    # Industry PE: median PE of the industry's actively traded companies
+    # (5 or more with a PE), so one company's PE can be judged against peers.
+    last = m["last_trade_date"] if "last_trade_date" in m else pd.Series(pd.NaT, index=m.index)
+    active = (last >= last.max() - pd.Timedelta(days=30)) if last.notna().any() else pd.Series(True, index=m.index)
+    has_pe = out[active.reindex(out.index).fillna(False) & out["pe"].notna() & out["industry"].notna()]
+    medians = has_pe.groupby("industry")["pe"].agg(["median", "count"])
+    medians = medians.loc[medians["count"] >= 5, "median"]
+    out["industry_pe"] = out["industry"].map(medians)
+
+    # PEG = PE ÷ yearly EPS growth (%). Growth compares today's EPS with EPS
+    # implied by NSE's published PE in March 2025, until a year of the
+    # company's own quarterly results is on file.
+    if eps_history is not None and not eps_history.empty:
+        h = eps_history.reindex(out.index)
+        years = (last.reindex(out.index) - h["eps_then_date"]).dt.days / 365.25
+        ok = (h["eps_then"] > 0) & (out["eps"] > 0) & (years >= 0.5)
+        growth = ((out["eps"] / h["eps_then"]) ** (1 / years) - 1) * 100
+        out["eps_growth_pct"] = growth.where(ok)
+        out["peg"] = (out["pe"] / out["eps_growth_pct"]).where(out["eps_growth_pct"] > 0)
 
     if shareholding is not None and not shareholding.empty:
         s = shareholding.sort_values("as_of")

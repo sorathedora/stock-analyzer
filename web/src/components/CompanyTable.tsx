@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BY_KEY, VISUAL } from "../data/columns";
 import type { Company, Dataset } from "../data/store";
 import { Cell, cellAlign } from "./Cell";
+import { FilterIcon, filterKey, type Filters } from "./ColumnFilter";
 
 export type Sort = { key: string; dir: 1 | -1 };
 
@@ -38,9 +39,11 @@ interface Props {
   onOpen: (isin: string) => void;
   onRemove?: (isin: string) => void;
   empty?: React.ReactNode;
+  filters?: Filters;
+  onFilter?: (key: string, at: { x: number; y: number }) => void;
 }
 
-export function CompanyTable({ d, rows, columns, sort, onSort, selected, onSelect, cursor, onOpen, onRemove, empty }: Props) {
+export function CompanyTable({ d, rows, columns, sort, onSort, selected, onSelect, cursor, onOpen, onRemove, empty, filters, onFilter }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => wrap.current, estimateSize: () => ROW, overscan: 14 });
@@ -69,8 +72,18 @@ export function CompanyTable({ d, rows, columns, sort, onSort, selected, onSelec
     >
       {label}
       {sort.key === key && <span aria-hidden="true">{sort.dir === 1 ? "↑" : "↓"}</span>}
+      {onFilter && <FilterButton k={filterKey(key)} label={label} />}
     </div>
   );
+  function FilterButton({ k, label }: { k: string; label: string }) {
+    const on = !!filters?.[k];
+    return (
+      <button className={`fbtn ${on ? "on" : ""}`} aria-label={`Filter ${label}`} data-tip={on ? "Filter on: click to change" : `Filter ${label}`}
+        onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); onFilter!(k, { x: r.left - 8, y: r.bottom }); }}>
+        <FilterIcon on={on} />
+      </button>
+    );
+  }
 
   const items = v.getVirtualItems();
   const before = items.length ? items[0].start : 0;
@@ -91,6 +104,7 @@ export function CompanyTable({ d, rows, columns, sort, onSort, selected, onSelec
             <span style={{ marginLeft: 10 }} onClick={() => onSort({ key: "name", dir: sort.key === "name" && sort.dir === 1 ? -1 : 1 })}>
               Company {sort.key === "name" && (sort.dir === 1 ? "↑" : "↓")}
             </span>
+            {onFilter && <FilterButton k="name" label="Company" />}
           </div>
           {columns.map((k) => {
             const col = BY_KEY[k];

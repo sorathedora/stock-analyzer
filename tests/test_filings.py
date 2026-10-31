@@ -96,3 +96,22 @@ def test_pe_blank_for_loss_makers():
     r = compute(metrics, None, google).iloc[0]
     assert pd.isna(r["pe"])
     assert r["pe_source"] == "google"
+
+
+def test_industry_pe_and_peg():
+    n = 6
+    metrics = pd.DataFrame({
+        "isin": [f"INE00{i}A01011" for i in range(n)], "name": list("ABCDEF"), "nse_symbol": list("ABCDEF"),
+        "bse_code": [None] * n, "industry": ["IT"] * n, "close": [100.0] * n, "market_cap_cr": [1000.0] * n,
+        "shares": [1e7] * n, "last_trade_date": [pd.Timestamp("2026-10-29")] * n,
+    })
+    eps = [10.0, 5.0, 4.0, 2.5, 2.0, 1.0]           # PEs 10, 20, 25, 40, 50, 100
+    google = pd.DataFrame({"isin": metrics["isin"], "google_pe": None, "google_eps": eps})
+    # EPS a year and a half earlier: company A grew 21% a year (1.21 ** 1.5 ≈ 1.331).
+    history = pd.DataFrame({"eps_then": [10.0 / 1.331, 5.0, 5.0, 2.5, 2.0, 1.0],
+                            "eps_then_date": pd.Timestamp("2025-04-29")}, index=metrics["isin"])
+    r = compute(metrics, None, google, None, history).set_index("nse_symbol")
+    assert r.loc["A", "industry_pe"] == pytest.approx(32.5)   # median of PEs 10, 20, 25, 40, 50, 100
+    assert r.loc["A", "eps_growth_pct"] == pytest.approx(21, abs=0.5)
+    assert r.loc["A", "peg"] == pytest.approx(10 / 21, abs=0.02)
+    assert pd.isna(r.loc["C", "peg"])                          # EPS fell, so no PEG

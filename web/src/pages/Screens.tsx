@@ -60,7 +60,7 @@ export function WatchlistPage({ d }: { d: Dataset }) {
   const rows = useMemo(() => (w ? w.isins.map((i) => d.byIsin.get(i)).filter((c) => !!c) : []), [w, d]);
   if (!w) return <div className="empty"><h3>No watchlists yet</h3><button className="btn primary" onClick={() => nav(`/w/${actions.create("My watchlist")}`)}>Create one</button></div>;
 
-  const view: ViewState = { ...defaultView(), preset: w.preset ?? "Overview", columns: w.columns ?? defaultView().columns, query: w.query ?? "", sort };
+  const view: ViewState = { ...defaultView(), preset: w.preset ?? "Overview", columns: w.columns ?? defaultView().columns, query: w.query ?? "", filters: w.filters ?? {}, sort };
   const missing = w.isins.length - rows.length;
   const finishRename = (v: string) => { actions.rename(w.id, v); setRenaming(false); params.delete("rename"); setParams(params, { replace: true }); };
 
@@ -76,7 +76,7 @@ export function WatchlistPage({ d }: { d: Dataset }) {
         meta={<>{rows.length} {rows.length === 1 ? "company" : "companies"}{missing > 0 ? ` · ${missing} not found in today's data` : ""} · close {format(d.asOf, "date")}</>}
         rows={rows}
         view={view}
-        onView={(v) => { setSort(v.sort); actions.setView(w.id, { preset: v.preset, columns: v.columns, query: v.query }); }}
+        onView={(v) => { setSort(v.sort); actions.setView(w.id, { preset: v.preset, columns: v.columns, query: v.query, filters: v.filters }); }}
         onRemove={(isins) => actions.drop(w.id, isins)}
         actions={<>
           <AddCompany d={d} onAdd={(i) => actions.add(w.id, [i])} />

@@ -5,18 +5,19 @@ import { format } from "../data/format";
 import type { Company, Dataset } from "../data/store";
 import { CompanyTable, sortRows, type Sort } from "./CompanyTable";
 import { ColumnPicker } from "./Dialogs";
+import { describe, FilterPopover, passes, type ColFilter, type Filters } from "./ColumnFilter";
 import { QueryBar, useQuery } from "./QueryBar";
 import { QuickView } from "./QuickView";
 import { AddToWatchlist } from "./AddToWatchlist";
 
 const FROM_FILINGS = new Set([
-  "pb", "ev_cr", "eps_ttm", "roe_pct", "ebitda_margin_q_pct", "net_margin_q_pct", "debt_to_equity", "current_ratio",
+  "pb", "ev_cr", "ev_ebitda", "roce_pct", "eps_ttm", "roe_pct", "ebitda_margin_q_pct", "net_margin_q_pct", "debt_to_equity", "current_ratio",
   "free_cash_flow_ytd_cr", "revenue_q_cr", "net_profit_q_cr", "book_value_cr", "debt_cr", "cash_cr", "latest_quarter",
   "promoter_pct", "promoter_pct_change", "fii_pct", "fii_pct_change", "dii_pct", "mutual_fund_pct", "mutual_fund_pct_change",
   "retail_pct", "retail_pct_change", "public_pct", "promoter_pledged_pct",
 ]);
 
-export interface ViewState { preset: string; columns: string[]; query: string; sort: Sort }
+export interface ViewState { preset: string; columns: string[]; query: string; sort: Sort; filters?: Filters }
 
 export const defaultView = (): ViewState => ({ preset: "Overview", columns: PRESETS.Overview, query: "", sort: { key: "market_cap_cr", dir: -1 } });
 
@@ -55,9 +56,12 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   const [cursor, setCursor] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
+  const [filterAt, setFilterAt] = useState<{ key: string; x: number; y: number } | null>(null);
   const { compiled, error } = useQuery(view.query);
+  // Preset views always use the preset's current columns; only Custom keeps its own list.
+  const columns = view.preset !== "Custom" && PRESETS[view.preset] ? PRESETS[view.preset] : view.columns;
 
-  const shown = useMemo(() => sortRows(rows.filter((r) => compiled.test(r)), view.sort, d), [rows, compiled, view.sort, d]);
+  const shown = useMemo(() => sortRows(rows.filter((r) => compiled.test(r) && passes(r, view.filters)), view.sort, d), [rows, compiled, view.filters, view.sort, d]);
 
   // Drop selections that are no longer visible.
   useEffect(() => {
@@ -94,9 +98,15 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
     return () => window.removeEventListener("keydown", onKey);
   }, [shown, cursor, open, selected, nav, d]);
 
+  const setFilter = (key: string, f: ColFilter | null) => {
+    const next = { ...view.filters };
+    if (f) next[key] = f; else delete next[key];
+    onView({ ...view, filters: next });
+  };
+  const activeFilters = Object.entries(view.filters ?? {});
   const setPreset = (p: string) => onView({ ...view, preset: p, columns: p === "Custom" ? view.columns : PRESETS[p] });
   // Ratios that need the company's results are empty until it files them.
-  const fromFilings = view.columns.filter((k) => FROM_FILINGS.has(k));
+  const fromFilings = columns.filter((k) => FROM_FILINGS.has(k));
   const filed = rows.filter((r) => r.latest_quarter || r.balance_sheet_date || r.shareholding_as_of).length;
   const sel = [...selected];
   const medianOf = (k: string) => {
@@ -120,8 +130,19 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         </div>
         <button className="btn" onClick={() => setPicker(true)} data-tip="Choose and order columns">Columns</button>
         <QueryBar value={view.query} onChange={(q) => onView({ ...view, query: q })} count={shown.length} total={rows.length} error={error} />
-        <button className="btn" onClick={() => download(`${exportName}.csv`, toCsv(shown, view.columns))} data-tip="Download what you see as CSV (opens in Excel)">Export</button>
+        <button className="btn" onClick={() => download(`${exportName}.csv`, toCsv(shown, columns))} data-tip="Download what you see as CSV (opens in Excel)">Export</button>
       </div>
+      {activeFilters.length > 0 && (
+        <div className="toolbar" style={{ marginTop: -2 }}>
+          {activeFilters.map(([k, f]) => (
+            <span className="chip" key={k}>
+              <button style={{ padding: 0, color: "inherit" }} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setFilterAt({ key: k, x: r.left, y: r.bottom }); }}>{describe(k, f)}</button>
+              <button aria-label={`Remove filter ${describe(k, f)}`} onClick={() => setFilter(k, null)}>✕</button>
+            </span>
+          ))}
+          <button className="btn ghost sm" onClick={() => onView({ ...view, filters: {} })}>Clear filters</button>
+        </div>
+      )}
       {fromFilings.length > 0 && filed < rows.length * 0.8 && (
         <div className="banner" style={{ margin: "0 20px 10px" }}>
           {fromFilings.map((k) => BY_KEY[k]?.short ?? BY_KEY[k]?.label).join(", ")} come from each company's own filings with NSE (results and shareholding).
@@ -130,11 +151,12 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         </div>
       )}
       <CompanyTable
-        d={d} rows={shown} columns={view.columns} sort={view.sort} onSort={(s) => onView({ ...view, sort: s })}
+        d={d} rows={shown} columns={columns} sort={view.sort} onSort={(s) => onView({ ...view, sort: s })}
         selected={selected} onSelect={setSelected} cursor={cursor} onOpen={openRow}
+        filters={view.filters} onFilter={(key, at) => setFilterAt({ key, ...at })}
         onRemove={onRemove ? (i) => onRemove([i]) : undefined}
         empty={rows.length === 0 ? empty : (
-          <div className="empty"><h3>No companies match</h3>Try loosening the filter <code className="mono">{view.query}</code>.</div>
+          <div className="empty"><h3>No companies match</h3>Try loosening the query or the column filters.</div>
         )}
       />
       {shown.length > 0 && (
@@ -151,7 +173,15 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         <button className="btn" onClick={() => setSelected(new Set())}>Clear</button>
       </div>
       <QuickView d={d} isin={open} onClose={() => setOpen(null)} onPick={openRow} />
-      {picker && <ColumnPicker columns={view.columns} onChange={(c) => onView({ ...view, preset: "Custom", columns: c })} onClose={() => setPicker(false)} />}
+      {filterAt && (
+        <FilterPopover
+          k={filterAt.key} at={filterAt} value={view.filters?.[filterAt.key]}
+          values={rows.map((r) => r[filterAt.key]).filter((v): v is number => typeof v === "number" && Number.isFinite(v))}
+          onApply={(f) => { setFilter(filterAt.key, f); setFilterAt(null); }}
+          onClose={() => setFilterAt(null)}
+        />
+      )}
+      {picker && <ColumnPicker columns={columns} onChange={(c) => onView({ ...view, preset: "Custom", columns: c })} onClose={() => setPicker(false)} />}
     </div>
   );
 }
