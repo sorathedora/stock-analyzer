@@ -61,17 +61,29 @@ def _v(rows, label, i=0):
     return None if not vals or i >= len(vals) or pd.isna(vals[i]) else float(vals[i])
 
 
-def fetch_company(url):
-    """Latest annual figures for one company, or None if pages are missing."""
+def fetch_main(url):
+    """BSE code, NSE symbol and industry from a company's main page."""
     main = get(url, html=True)
     if not main:
         return None
     page = main.decode("utf-8", "replace")
     codes = _CODES.search(page)
-    bse, nse = (codes.group(1), codes.group(2) or None) if codes else (None, None)
     # Two "NEWS FOR" headings: the company's own news, then its industry's.
     headings = _INDUSTRY.findall(page)
-    industry = html.unescape(headings[-1]).strip() if len(headings) >= 2 else None
+    return {
+        "rediff_url": url,
+        "bse_code": codes.group(1) if codes else None,
+        "nse_symbol": (codes.group(2) or None) if codes else None,
+        "industry": html.unescape(headings[-1]).strip() if len(headings) >= 2 else None,
+    }
+
+
+def fetch_company(url):
+    """Latest annual figures for one company, or None if pages are missing."""
+    main = fetch_main(url)
+    if not main:
+        return None
+    bse, nse, industry = main["bse_code"], main["nse_symbol"], main["industry"]
     pages = {k: get(f"{url}/{k}", html=True) for k in ("balance-sheet", "profit-and-loss", "cash-flow")}
     if not pages["balance-sheet"] or not pages["profit-and-loss"]:
         return None
@@ -107,21 +119,26 @@ def fetch_company(url):
     }
 
 
-def _safe(url):
+def _safe(url, fn=None):
     try:
-        return fetch_company(url)
+        return (fn or fetch_company)(url)
     except Exception as e:  # one bad page must not stop the import
         return {"rediff_url": url, "error": repr(e)[:200]}
 
 
-def import_all(urls=None, workers=WORKERS, done=None, save=None, every=200):
+def import_industries(urls=None, workers=WORKERS, done=None, save=None, every=500):
+    """Industry and codes only: one page per company instead of four."""
+    return import_all(urls, workers, done, save, every, fn=fetch_main)
+
+
+def import_all(urls=None, workers=WORKERS, done=None, save=None, every=200, fn=None):
     """Read every company; skip URLs in `done`; call save(rows) every so often."""
     urls = urls if urls is not None else company_urls()
     todo = [u for u in urls if u not in (done or set())]
     print(f"{len(urls)} companies listed, {len(todo)} to read")
     rows = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for i, row in enumerate(pool.map(_safe, todo), 1):
+        for i, row in enumerate(pool.map(lambda u: _safe(u, fn), todo), 1):
             if row:
                 rows.append(row)
             if i % every == 0:

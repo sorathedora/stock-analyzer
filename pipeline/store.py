@@ -94,6 +94,7 @@ def save_shareholding(new):
 GOOGLE = DATA / "google_history.parquet"
 ANNUAL = DATA / "annual_reports.parquet"
 NAMES = DATA / "names.parquet"
+INDUSTRIES = DATA / "industries.parquet"
 RATIOS = DATA / "ratios.parquet"
 
 
@@ -109,6 +110,11 @@ def save_names(new):
     """Every company name/symbol seen in a price file; the latest sighting wins."""
     new = new.dropna(subset=["isin"]).sort_values("last_seen")
     return _append(NAMES, new, ["isin", "exchange"])
+
+
+def save_industries(new):
+    """Rediff industry and codes per company page."""
+    return _append(INDUSTRIES, new, ["rediff_url"])
 
 
 def save_annual(new):

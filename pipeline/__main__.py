@@ -8,6 +8,7 @@
     python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
     python -m pipeline archive START END  # re-read NSE's archive for stored days
     python -m pipeline names START END [--every N]  # company names from past price files
+    python -m pipeline industries         # industry of every company from Rediff (resumable)
     python -m pipeline fundamentals       # import annual-report figures from Rediff (resumable)
     python -m pipeline export [DIR]       # write companies.json for the web app
 """
@@ -212,10 +213,14 @@ def build_ratios(price_metrics=None, history=None):
     g = google.fetch()
     if g is not None:
         store.save_google(g.assign(date=price_metrics["as_of"].max()))
+    u = with_names(pd.read_parquet(store.UNIVERSE))
     annual = store.load(store.ANNUAL)
     if annual is not None and "fy_end" in annual:
-        annual = rediff.match_isins(annual.dropna(subset=["fy_end"]), with_names(pd.read_parquet(store.UNIVERSE)))
-    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history, annual)
+        annual = rediff.match_isins(annual.dropna(subset=["fy_end"]), u)
+    industries = store.load(store.INDUSTRIES)
+    if industries is not None and "industry" in industries:
+        industries = rediff.match_isins(industries.dropna(subset=["industry"]), u)
+    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history, annual, industries)
     store.save_ratios(r)
     counts = r["pe_source"].value_counts().to_dict()
     print(f"ratios for {len(r)} companies; PE from {counts}; checks {r['pe_check'].value_counts().to_dict()}")
@@ -240,6 +245,7 @@ def main(argv=None):
     a = sub.add_parser("archive")
     a.add_argument("start")
     a.add_argument("end")
+    sub.add_parser("industries")
     f = sub.add_parser("fundamentals")
     f.add_argument("--limit", type=int, default=None, help="read only the first N companies (testing)")
     f.add_argument("--fresh", action="store_true", help="re-read companies already imported")
@@ -254,6 +260,12 @@ def main(argv=None):
     if args.cmd == "archive":
         refetch_archive(args.start, args.end)
         rebuild(None)
+        return
+    if args.cmd == "industries":
+        have = store.load(store.INDUSTRIES)
+        done = set() if have is None else set(have.loc[have["industry"].notna(), "rediff_url"])
+        rediff.import_industries(done=done, save=store.save_industries)
+        build_ratios()
         return
     if args.cmd == "fundamentals":
         urls = rediff.company_urls()[: args.limit]

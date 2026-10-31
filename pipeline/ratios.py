@@ -94,7 +94,6 @@ def _fill_from_annual(out, annual, shares):
     fields = ["industry", "equity_cr", "equity_prev_cr", "debt_cr", "cash_cr", "revenue_cr", "operating_profit_cr",
               "other_income_cr", "interest_cr", "pbt_cr", "net_profit_cr", "fy_end"]
     a = a.reindex(columns=a.columns.union(fields))
-    out["sector"] = out["industry"]
     out["industry"] = a["industry"].fillna(out["industry"])
 
     eq, debt, cash = a["equity_cr"], a["debt_cr"], a["cash_cr"]
@@ -113,10 +112,13 @@ def _fill_from_annual(out, annual, shares):
     }, index=out.index)
     # Holding companies (e.g. Coal India) earn mostly dividends from subsidiaries,
     # so standalone statements say little about the business: leave them blank.
-    holding = (a["other_income_cr"] > 2 * a["operating_profit_cr"].clip(lower=0)) & (a["other_income_cr"] > 0.5 * a["pbt_cr"])
+    # Signature: profitable, with more pre-tax profit than revenue, mostly
+    # from other income (dividends). Lenders are handled separately below.
+    lender = (a["interest_cr"] > 0.4 * a["revenue_cr"]) | (out["sector"] == "Financial Services")
+    holding = ((a["pbt_cr"] > 0) & (a["other_income_cr"] > 0.6 * a["pbt_cr"])
+               & (a["revenue_cr"] < a["pbt_cr"]) & ~lender.fillna(False).astype(bool))
     d.loc[holding.fillna(False).astype(bool), :] = np.nan
     # Lenders: interest is the main cost, so ROCE, EV/EBITDA and D/E mislead.
-    lender = (a["interest_cr"] > 0.4 * a["revenue_cr"]) | (out["sector"] == "Financial Services")
     d.loc[lender.fillna(False).astype(bool), ["roce_pct", "ev_ebitda", "debt_to_equity"]] = np.nan
 
     filled = pd.Series(False, index=out.index)
@@ -132,7 +134,7 @@ def _fill_from_annual(out, annual, shares):
     out["annual_report_fy"] = a["fy_end"]
 
 
-def compute(price_metrics, results=None, google=None, shareholding=None, eps_history=None, annual=None):
+def compute(price_metrics, results=None, google=None, shareholding=None, eps_history=None, annual=None, industries=None):
     m = price_metrics.set_index("isin")
     out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
     shares = m.get("shares")
@@ -195,6 +197,11 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
         out["cash_from_operations_ytd_cr"] = b["cash_from_operations"] / 1e7
         out["free_cash_flow_ytd_cr"] = (b["cash_from_operations"] - b["capex"].fillna(0)) / 1e7
 
+    # Rediff's industries (~160) replace NSE's ~20 broad sectors; NSE's label stays as `sector`.
+    out["sector"] = out["industry"]
+    if industries is not None and not industries.empty:
+        ind = industries.dropna(subset=["isin", "industry"]).drop_duplicates("isin", keep="last").set_index("isin")["industry"]
+        out["industry"] = ind.reindex(out.index).fillna(out["industry"])
     if annual is not None and not annual.empty:
         _fill_from_annual(out, annual, shares)
 
