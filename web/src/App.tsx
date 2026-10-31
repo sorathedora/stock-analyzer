@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette";
-import { NewWatchlistDialog } from "./components/Dialogs";
+import { NewWatchlistDialog, SyncDialog } from "./components/Dialogs";
 import { Tooltips } from "./components/visuals";
 import { format } from "./data/format";
 import { load, loadError, useData, type Dataset } from "./data/store";
 import { toggleTheme, useTheme } from "./data/theme";
-import { actions, syncFromServer, useWatchlists } from "./data/watchlists";
+import { actions, syncFromServer, useSyncStatus, useWatchlists } from "./data/watchlists";
 import { CompanyPage } from "./pages/CompanyPage";
 import { ComparePage } from "./pages/ComparePage";
 import { AllPage, IndustriesPage, IndustryPage, WatchlistPage } from "./pages/Screens";
 
-function Rail({ d, onSearch, onNewList, open, onClose }: { d: Dataset; onSearch: () => void; onNewList: () => void; open: boolean; onClose: () => void }) {
+const SYNC_DOT = { off: "var(--ink-3)", on: "var(--ok)", badkey: "var(--down)", offline: "var(--warn)" };
+const SYNC_LABEL = { off: "This device only", on: "Synced", badkey: "Sync key rejected", offline: "Sync waiting" };
+
+function Rail({ d, onSearch, onNewList, onSync, open, onClose }: { d: Dataset; onSearch: () => void; onNewList: () => void; onSync: () => void; open: boolean; onClose: () => void }) {
   const lists = useWatchlists();
+  const sync = useSyncStatus();
   const theme = useTheme();
   const active = d.companies.filter((c) => c.active).length;
   return (
@@ -41,6 +45,7 @@ function Rail({ d, onSearch, onNewList, open, onClose }: { d: Dataset; onSearch:
       <div className="fresh">
         <div><span className="dot" style={{ background: "var(--ok)" }} />Prices <b>{format(d.asOf, "date")} close</b></div>
         <div className="muted">Data built {d.generated} IST</div>
+        <div><button onClick={onSync} data-tip="Sync watchlists across devices"><span className="dot" style={{ background: SYNC_DOT[sync] }} />Watchlists: {SYNC_LABEL[sync]}</button></div>
         <div style={{ marginTop: 8 }}><button onClick={toggleTheme}>{theme === "dark" ? "Light mode" : "Dark mode"}</button></div>
       </div>
     </aside>
@@ -57,8 +62,15 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [menu, setMenu] = useState(false);
   const [newList, setNewList] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const nav = useNavigate();
-  useEffect(() => { void load(); void syncFromServer(); }, []);
+  useEffect(() => {
+    void load(); void syncFromServer();
+    // Pick up changes made on another device when coming back to this tab.
+    const onShow = () => { if (document.visibilityState === "visible") void syncFromServer(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((p) => !p); }
@@ -81,7 +93,7 @@ export function App() {
   }
   return (
     <div className="app">
-      <Rail d={d} onSearch={() => { setMenu(false); setPalette(true); }} onNewList={() => { setMenu(false); setNewList(true); }} open={menu} onClose={() => setMenu(false)} />
+      <Rail d={d} onSearch={() => { setMenu(false); setPalette(true); }} onNewList={() => { setMenu(false); setNewList(true); }} onSync={() => { setMenu(false); setSyncOpen(true); }} open={menu} onClose={() => setMenu(false)} />
       {menu && <div className="railscrim" onClick={() => setMenu(false)} />}
       <main className="main">
         <div className="mobilebar">
@@ -105,6 +117,7 @@ export function App() {
         <NewWatchlistDialog d={d} onClose={() => setNewList(false)}
           onCreate={(name, isins) => { const id = actions.create(name, isins); setNewList(false); nav(`/w/${id}`); }} />
       )}
+      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
       <Tooltips />
     </div>
   );

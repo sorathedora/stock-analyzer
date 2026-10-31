@@ -1,0 +1,6 @@
+# Built files have content hashes in their names, so they never change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+# Market data is replaced after every daily run.
+/data/*
+  Cache-Control: public, max-age=600

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BY_KEY, COLUMNS, VISUAL } from "../data/columns";
 import type { Dataset } from "../data/store";
 import { baseName, parseCells, readFile, textCells, type Parsed, type Sheet } from "../data/importFile";
+import { setSyncKey, useSyncStatus, type SyncStatus } from "../data/watchlists";
 
 function Modal({ title, onClose, children, width = 560 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
   return (
@@ -185,6 +186,37 @@ export function ColumnPicker({ columns, onChange, onClose }: { columns: string[]
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn primary" onClick={() => { onChange(sel); onClose(); }}>Apply</button>
       </div>
+    </Modal>
+  );
+}
+
+const SYNC_TEXT: Record<SyncStatus, string> = {
+  off: "Watchlists are saved on this device only.",
+  on: "Watchlists sync across your devices.",
+  badkey: "The server didn't accept this key. Check it and try again.",
+  offline: "Can't reach the sync server right now; changes are kept here and sent later.",
+};
+
+/** Enter the sync key once per device so watchlists follow you. */
+export function SyncDialog({ onClose }: { onClose: () => void }) {
+  const status = useSyncStatus();
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async (k: string) => { setBusy(true); const s = await setSyncKey(k); setBusy(false); if (s === "on" || !k) onClose(); };
+  return (
+    <Modal title="Sync across devices" onClose={onClose} width={440}>
+      <p className="soft" style={{ marginTop: 0 }}>{SYNC_TEXT[status]}</p>
+      <p className="muted" style={{ fontSize: 12.5 }}>
+        Enter the sync key you set when publishing the app (the <span className="mono">SYNC_KEY</span> secret). Each device needs it once.
+      </p>
+      <form onSubmit={(e) => { e.preventDefault(); if (key.trim()) void save(key); }} style={{ display: "flex", gap: 8 }}>
+        <input className="input" style={{ flex: 1 }} type="password" autoComplete="current-password" autoFocus
+          placeholder="Sync key" value={key} onChange={(e) => setKey(e.target.value)} />
+        <button className="btn primary" disabled={busy || !key.trim()}>{busy ? "Checking…" : "Turn on"}</button>
+      </form>
+      {status !== "off" && (
+        <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => void save("")}>Turn off on this device</button>
+      )}
     </Modal>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Watchlists live in the browser (instant, works offline) and sync to the
- * server's /api/watchlists when it is reachable, so every device sees the
- * same lists. The most recently changed copy wins.
+ * server's /api/watchlists once this device has the sync key, so every
+ * device sees the same lists. The most recently changed copy wins.
  */
 import { useSyncExternalStore } from "react";
 
@@ -21,6 +21,44 @@ const KEY = "watchlists.v1";
 const listeners = new Set<() => void>();
 let state: State = read();
 let syncing: Promise<void> | null = null;
+
+/** off: no key on this device · on: last sync worked · badkey · offline */
+export type SyncStatus = "off" | "on" | "badkey" | "offline";
+const SYNC_KEY = "sync.key";
+let sync: SyncStatus = syncKey() ? "offline" : "off";
+const syncListeners = new Set<() => void>();
+
+function syncKey() {
+  try { return localStorage.getItem(SYNC_KEY) ?? ""; } catch { return ""; }
+}
+function setSync(s: SyncStatus) { sync = s; syncListeners.forEach((l) => l()); }
+export function useSyncStatus() {
+  return useSyncExternalStore((l) => { syncListeners.add(l); return () => syncListeners.delete(l); }, () => sync);
+}
+/** Save (or clear, with "") this device's sync key, then sync. */
+export async function setSyncKey(key: string) {
+  try { key ? localStorage.setItem(SYNC_KEY, key.trim()) : localStorage.removeItem(SYNC_KEY); } catch { /* storage blocked */ }
+  setSync(key ? "offline" : "off");
+  if (key) await syncFromServer();
+  return sync;
+}
+
+/** Calls the sync API; null when there is no key or the server can't be reached. */
+async function api(method: "GET" | "PUT", body?: State): Promise<State | null | undefined> {
+  const key = syncKey();
+  if (!key) return undefined;
+  try {
+    const r = await fetch("/api/watchlists", {
+      method,
+      headers: { authorization: `Bearer ${key}`, ...(body ? { "content-type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (r.status === 401) { setSync("badkey"); return undefined; }
+    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("json")) { setSync("offline"); return undefined; }
+    setSync("on");
+    return (await r.json()) as State | null;
+  } catch { setSync("offline"); return undefined; }
+}
 
 function read(): State {
   try {
@@ -68,26 +106,21 @@ export const actions = {
   },
 };
 
+/** Push this device's copy; the server keeps (and returns) whichever is newer. */
 async function pushRemote() {
-  try {
-    await fetch("/api/watchlists", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(state),
-    });
-  } catch { /* offline or no server: the local copy is kept */ }
+  const kept = await api("PUT", state);
+  if (kept && kept.updated > state.updated) write(kept, false);
 }
 
 /** Pull the server copy; keep whichever side changed last. */
 export function syncFromServer() {
   syncing ??= (async () => {
     try {
-      const r = await fetch("/api/watchlists");
-      if (!r.ok) return;
-      const remote = (await r.json()) as State | null;
+      const remote = await api("GET");
+      if (remote === undefined) return;
       if (remote && Array.isArray(remote.lists) && remote.updated > state.updated) write(remote, false);
       else if (state.updated > (remote?.updated ?? 0)) await pushRemote();
-    } catch { /* offline */ } finally { syncing = null; }
+    } finally { syncing = null; }
   })();
   return syncing;
 }

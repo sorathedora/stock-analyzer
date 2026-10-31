@@ -1,0 +1,9 @@
+# Cloudflare Pages project for the web app. See DEPLOY.md.
+name = "parakh"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "parakh"
+database_id = "b505c3ed-e7aa-482a-99d0-e5d15ee27786"

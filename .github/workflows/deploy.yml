@@ -1,0 +1,46 @@
+name: Deploy web app
+# Builds the app with the latest data and publishes it to Cloudflare Pages:
+# after every data run, on app or pipeline changes, or by hand.
+on:
+  workflow_run:
+    workflows: ["Daily data", "Import fundamentals", "Collect filings"]
+    types: [completed]
+  push:
+    branches: [main]
+    paths: ["web/**", "pipeline/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: pip install -r requirements.txt
+      - run: scripts/data_release.sh download
+      # Recompute ratios so pipeline changes show up without waiting for the daily run.
+      - run: python -m pipeline ratios
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
+      - run: python -m pipeline export web/public/data
+      - working-directory: web
+        run: npm ci && npm run build
+      - working-directory: web
+        run: npx wrangler pages deploy dist --project-name parakh --branch main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
