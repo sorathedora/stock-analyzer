@@ -59,6 +59,7 @@ Everything runs on GitHub's free runners. Nothing runs on your computer.
 | NSE's own published PE (history) | Same archive → `PE_*.csv` | Daily, while NSE published it | Early 2024 to mid 2025 only. Kept for cross-checking |
 | Quarterly/half-year results (P&L, balance sheet, cash flow, EPS) | NSE RSS `content/RSS/Integrated_Filing_Financials.xml` and `Financial_Results.xml`, which link to each company's XBRL filing | Every 10 minutes | From 30 Oct 2026 onward, as companies file |
 | Shareholding pattern (promoter, FII, DII, MF, public, pledged) | NSE RSS `content/RSS/Shareholding_Pattern.xml`, linking to XBRL | Every 10 minutes | From 30 Oct 2026 onward, as companies file |
+| Annual-report figures: equity, debt, cash, revenue, operating profit, interest, depreciation, PBT, net profit (standalone, latest financial year), and industry | Rediff Money company pages `money.rediff.com/companies/{name}/{code}/balance-sheet`, `/profit-and-loss`, `/cash-flow`. Every page is listed in Rediff's sitemaps for crawlers (`money.rediff.com/robots.txt`). Companies are matched by the BSE code and NSE symbol shown on each page | One-time import (rerun after annual results, or with `fresh`) | ~5,400 companies |
 | Current EPS and PE (cross-check and fallback) | Google Finance `GOOGLEFINANCE(ticker,"eps")` in a Google Sheet published as CSV (repo variable `GOOGLE_SHEET_CSV_URL`) | Daily | ~4,160 of 4,930 companies. NSE SME stocks aren't covered by Google |
 
 **What isn't used, and why.** NSE's and BSE's website APIs (quote pages,
@@ -129,6 +130,16 @@ six-month period. Field names cover both Ind AS and non-Ind AS filers.
 "A year" means the last four quarters when on file, else the year to date
 annualised.
 
+### Annual-report fallback (Rediff)
+Where no NSE results filing is on file yet, PB, D/E, ROE, ROCE and
+EV/EBITDA use the latest annual report: ROE = net profit ÷ average equity,
+ROCE = (PBT + interest) ÷ (equity + debt), EV/EBITDA uses operating profit.
+They're **standalone** figures, so holding companies whose business sits in
+subsidiaries (e.g. Coal India) are left blank with a note. The app shows each
+value's source on hover, and NSE filings replace these as companies file.
+Rediff's industry names (≈150, finer than NSE's ~20 sectors) are used for
+industry PE and peers; NSE's label is kept as "sector".
+
 ### Industry PE and PEG (no filings needed)
 - **Industry PE**: median PE of the actively traded companies in the same
   industry (needs 5 or more with a PE).
@@ -150,7 +161,7 @@ and the app says so.
 
 ---
 
-## Why some columns are empty right now
+## Why some columns may be empty
 
 PB, EV, ROE, margins, debt/equity, book value and shareholding come only
 from the companies' own filings. Collection started on **30 Oct 2026**, the
