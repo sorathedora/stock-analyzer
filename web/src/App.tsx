@@ -4,7 +4,8 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NewWatchlistDialog, SyncDialog } from "./components/Dialogs";
 import { Tooltips } from "./components/visuals";
 import { format } from "./data/format";
-import { load, loadError, useData, type Dataset } from "./data/store";
+import { startLive } from "./data/live";
+import { getData, load, loadError, useData, type Dataset } from "./data/store";
 import { toggleTheme, useTheme } from "./data/theme";
 import { actions, syncFromServer, useSyncStatus, useWatchlists } from "./data/watchlists";
 import { CompanyPage } from "./pages/CompanyPage";
@@ -43,7 +44,13 @@ function Rail({ d, onSearch, onNewList, onSync, open, onClose }: { d: Dataset; o
         </nav>
       </div>
       <div className="fresh">
-        <div><span className="dot" style={{ background: "var(--ok)" }} />Prices <b>{format(d.asOf, "date")} close</b></div>
+        {d.live ? (
+          <div data-tip={`Google Finance prices (up to 20 minutes delayed) for ${d.live.count.toLocaleString("en-IN")} companies, on top of the ${format(d.asOf, "date")} close. PE, market cap and other price-based figures move with them; official closing figures arrive in the evening.`}>
+            <span className="dot live" style={{ background: "var(--up)" }} />Live <b>{new Date(d.live.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</b> · ~20 min delay
+          </div>
+        ) : (
+          <div><span className="dot" style={{ background: "var(--ok)" }} />Prices <b>{format(d.asOf, "date")} close</b></div>
+        )}
         <div className="muted">Data built {d.generated} IST</div>
         <div><button onClick={onSync} data-tip="Sync watchlists across devices"><span className="dot" style={{ background: SYNC_DOT[sync] }} />Watchlists: {SYNC_LABEL[sync]}</button></div>
         <div style={{ marginTop: 8 }}><button onClick={toggleTheme}>{theme === "dark" ? "Light mode" : "Dark mode"}</button></div>
@@ -64,6 +71,9 @@ export function App() {
   const [newList, setNewList] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const nav = useNavigate();
+  // Intraday prices once the data is in, until the evening brings the official close.
+  const asOf = d?.asOf;
+  useEffect(() => (asOf ? startLive(getData) : undefined), [asOf]);
   useEffect(() => {
     void load(); void syncFromServer();
     // Pick up changes made on another device when coming back to this tab.

@@ -61,6 +61,7 @@ Everything runs on GitHub's free runners. Nothing runs on your computer.
 | Shareholding pattern (promoter, FII, DII, MF, public, pledged) | NSE RSS `content/RSS/Shareholding_Pattern.xml`, linking to XBRL | Every 10 minutes | From 30 Oct 2026 onward, as companies file |
 | Annual-report figures: equity, debt, cash, revenue, operating profit, interest, depreciation, PBT, net profit (standalone, latest financial year), and industry | Rediff Money company pages `money.rediff.com/companies/{name}/{code}/balance-sheet`, `/profit-and-loss`, `/cash-flow`. Every page is listed in Rediff's sitemaps for crawlers (`money.rediff.com/robots.txt`). Companies are matched by the BSE code and NSE symbol shown on each page | One-time import (rerun after annual results, or with `fresh`) | ~5,400 companies |
 | Current EPS and PE (cross-check and fallback) | Google Finance `GOOGLEFINANCE(ticker,"eps")` in a Google Sheet published as CSV (repo variable `GOOGLE_SHEET_CSV_URL`) | Daily | ~4,160 of 4,930 companies. NSE SME stocks aren't covered by Google |
+| Intraday prices and share counts | The same sheet's `GOOGLEFINANCE(ticker,"price")` and `"shares"`. The web app reads prices through `/api/live` every 5 minutes on weekdays until the official close arrives; share counts fill market cap for BSE-only companies | Price up to 20 minutes delayed | Companies Google covers |
 
 **What isn't used, and why.** NSE's and BSE's website APIs (quote pages,
 filings search) block automated access. Getting around that would break

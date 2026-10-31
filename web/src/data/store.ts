@@ -24,6 +24,8 @@ export interface Dataset {
   sparks: Record<string, number[]>;
   /** Sorted values per metric, per industry and for the whole market. */
   dist: Map<string, Map<string, Float64Array>>;
+  /** Set while intraday prices are shown: when they were read, and for how many companies. */
+  live?: { at: string; count: number };
 }
 
 let data: Dataset | null = null;
@@ -86,6 +88,53 @@ export async function load() {
   listeners.forEach((l) => l());
 }
 
+/** Fields that move with the price, saved before the first live update. */
+const LIVE_FIELDS = ["close", "change_pct", "market_cap_cr", "pe", "pb", "peg", "ev_cr", "ev_ebitda",
+  "dividend_yield_pct", "earnings_yield_pct", "high_52w", "low_52w", "pct_from_52w_high", "pct_from_52w_low",
+  "above_dma_50", "above_dma_200", "ret_1w", "ret_1m", "ret_3m", "ret_6m", "ret_1y", "ret_3y", "ret_5y"];
+const base = new Map<string, Record<string, unknown>>();
+const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * Show intraday prices on top of the last official close. Everything tied to
+ * the price (market cap, PE, PB, yields, returns, 52-week position) is
+ * rescaled; the official figures come back with the next daily data.
+ */
+export function applyLive(prices: Record<string, number>, at: string) {
+  if (!data) return;
+  let count = 0;
+  for (const c of data.companies) {
+    const b = base.get(c.isin);
+    if (b) Object.assign(c, b);
+    const p = prices[c.isin];
+    const close = c.close;
+    if (!num(p) || !num(close) || close <= 0 || p === close) continue;
+    const f = p / close;
+    if (f < 0.5 || f > 2) continue; // a split or a bad quote, not a day's move
+    if (!b) base.set(c.isin, Object.fromEntries(LIVE_FIELDS.map((k) => [k, c[k]])));
+    const scale = (k: string, by: number) => { if (num(c[k])) c[k] = (c[k] as number) * by; };
+    c.close = p;
+    c.change_pct = (f - 1) * 100;
+    if (num(c.market_cap_cr) && num(c.ev_cr) && c.ev_cr > 0) {
+      const ev = c.ev_cr + c.market_cap_cr * (f - 1);
+      scale("ev_ebitda", ev / c.ev_cr);
+      c.ev_cr = ev;
+    }
+    for (const k of ["market_cap_cr", "pe", "pb", "peg"]) scale(k, f);
+    for (const k of ["dividend_yield_pct", "earnings_yield_pct"]) scale(k, 1 / f);
+    for (const k of ["ret_1w", "ret_1m", "ret_3m", "ret_6m", "ret_1y", "ret_3y", "ret_5y"]) {
+      if (num(c[k])) c[k] = ((1 + (c[k] as number) / 100) * f - 1) * 100;
+    }
+    if (num(c.high_52w)) { const h = Math.max(c.high_52w, p); c.high_52w = h; c.pct_from_52w_high = (p / h - 1) * 100; }
+    if (num(c.low_52w)) { const l = Math.min(c.low_52w, p); c.low_52w = l; c.pct_from_52w_low = (p / l - 1) * 100; }
+    if (num(c.dma_50)) c.above_dma_50 = p > c.dma_50;
+    if (num(c.dma_200)) c.above_dma_200 = p > c.dma_200;
+    count++;
+  }
+  data = { ...data, dist: buildDist(data.companies), live: count ? { at, count } : undefined };
+  listeners.forEach((l) => l());
+}
+
 export function useData() {
   return useSyncExternalStore(
     (l) => { listeners.add(l); return () => listeners.delete(l); },
@@ -93,6 +142,7 @@ export function useData() {
   );
 }
 export const loadError = () => error;
+export const getData = () => data;
 
 /**
  * Where a value sits among peers: percentile 0–100, the median and the group

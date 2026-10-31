@@ -1,8 +1,12 @@
-"""Google Finance PE and EPS via a published Google Sheet.
+"""Google Finance price, EPS and share count via a published Google Sheet.
 
 `make_sheet` writes an .xlsx with GOOGLEFINANCE formulas for every company.
 Once imported into Google Sheets and published to the web as CSV, `fetch`
 reads it. Each daily read is kept, which builds a PE history over time.
+
+The price (up to 20 minutes delayed) also feeds the web app's intraday
+prices; the share count fills market cap for BSE-only companies, which
+NSE's share file doesn't cover. PE is our close divided by Google's EPS.
 """
 import io
 import os
@@ -11,7 +15,7 @@ import pandas as pd
 
 from .fetch import get
 
-ATTRIBUTES = ["pe", "eps"]
+ATTRIBUTES = ["price", "eps", "shares"]
 
 
 def ticker(row):
@@ -45,9 +49,12 @@ def fetch(url=None):
     if not raw:
         return None
     df = pd.read_csv(io.BytesIO(raw))
+    col = lambda k: pd.to_numeric(df[k], errors="coerce") if k in df else pd.Series(float("nan"), index=df.index)
     out = pd.DataFrame({
         "isin": df["isin"],
-        "google_pe": pd.to_numeric(df["pe"], errors="coerce"),
-        "google_eps": pd.to_numeric(df["eps"], errors="coerce"),
+        "google_pe": col("pe"),  # older sheets only
+        "google_eps": col("eps"),
+        "google_price": col("price"),
+        "google_shares": col("shares"),
     })
-    return out.dropna(subset=["google_pe", "google_eps"], how="all")
+    return out.dropna(subset=["google_pe", "google_eps", "google_price", "google_shares"], how="all")

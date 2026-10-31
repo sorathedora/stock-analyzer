@@ -166,6 +166,13 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
     out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
     shares = m.get("shares")
     classify(out, industries, annual)
+    g = google.drop_duplicates("isin").set_index("isin") if google is not None and not google.empty else None
+    if g is not None and "google_shares" in g:
+        # NSE's share file misses BSE-only companies; Google's count fills them.
+        gs = g["google_shares"].reindex(out.index).where(lambda s: s > 0)
+        shares = gs if shares is None else shares.fillna(gs)
+        out["shares"] = shares
+        out["market_cap_cr"] = out["market_cap_cr"].fillna(out["close"] * shares / 1e7)
 
     if results is not None and not results.empty:
         # Filings only carry the items a company reports; add the rest as blanks.
@@ -228,8 +235,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
     if annual is not None and not annual.empty:
         _fill_from_annual(out, annual, shares)
 
-    if google is not None and not google.empty:
-        g = google.drop_duplicates("isin").set_index("isin")
+    if g is not None:
         out["eps_google"] = g["google_eps"]
         # Same closing price as our own PE, so the two differ only by EPS.
         out["pe_google"] = out["close"] / out["eps_google"]

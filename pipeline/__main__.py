@@ -285,7 +285,10 @@ def main(argv=None):
         build_ratios()
         return
     if args.cmd == "sheet":
-        n = google.make_sheet(pd.read_parquet(store.UNIVERSE), args.path)
+        # Companies traded in the last 30 days; delisted ones would only add errors.
+        m = pd.read_parquet(store.METRICS)
+        m = m[m["last_trade_date"] >= m["last_trade_date"].max() - pd.Timedelta(days=30)]
+        n = google.make_sheet(m.sort_values("name"), args.path)
         print(f"wrote {n} companies to {args.path}")
         return
     if args.cmd == "backfill":

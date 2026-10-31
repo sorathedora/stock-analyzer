@@ -145,3 +145,17 @@ def test_annual_report_fills_missing_fundamentals():
     lender = r.loc["LND"]
     assert pd.isna(lender["roce_pct"]) and pd.isna(lender["ev_ebitda"]) and pd.isna(lender["debt_to_equity"])
     assert lender["roe_pct"] == pytest.approx(45 / 400 * 100)
+
+
+def test_google_shares_fill_market_cap_for_bse_only():
+    metrics = pd.DataFrame({
+        "isin": ["INE000A01011", "INE000B01011"], "name": ["Nse", "BseOnly"], "nse_symbol": ["NSEC", None],
+        "bse_code": ["500001", "500002"], "industry": [None, None], "close": [100.0, 50.0],
+        "market_cap_cr": [1000.0, None], "shares": [1e8, None],
+    })
+    google = pd.DataFrame({"isin": metrics["isin"], "google_eps": [5.0, 2.0], "google_price": [101.0, 51.0],
+                           "google_shares": [2e8, 4e7]})
+    r = compute(metrics, None, google).set_index("name")
+    assert r.loc["Nse", "market_cap_cr"] == 1000.0           # NSE's own count wins
+    assert r.loc["BseOnly", "market_cap_cr"] == pytest.approx(50 * 4e7 / 1e7)
+    assert r.loc["BseOnly", "pe"] == pytest.approx(25)

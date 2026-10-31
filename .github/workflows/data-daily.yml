@@ -1,7 +1,10 @@
 name: Daily data
 on:
   schedule:
-    # 20:00 and 23:00 IST on weekdays; the second run catches late files.
+    # 18:30, 20:00 and 23:00 IST on weekdays. NSE usually posts the day's
+    # file by 18:00; the later runs catch late files (and GitHub's cron can
+    # start up to an hour late).
+    - cron: "0 13 * * 1-5"
     - cron: "30 14 * * 1-5"
     - cron: "30 17 * * 1-5"
   workflow_dispatch:
