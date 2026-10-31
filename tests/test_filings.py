@@ -50,6 +50,10 @@ def test_shareholding_categories():
     assert s["promoter_pct"] == pytest.approx(15.71)
     assert s["fii_pct"] == pytest.approx(7.55)
     assert s["dii_pct"] == pytest.approx(12.53)
+    assert s["retail_pct"] == pytest.approx(3.78)
+    assert s["mutual_fund_pct"] == pytest.approx(6.02)
+    # The filing only says "no shares pledged"; that's 0%, not unknown.
+    assert s["promoter_pledged_pct"] == 0.0
 
 
 def quarters(isin, eps_values, start="2025-06-30", basis="consolidated"):

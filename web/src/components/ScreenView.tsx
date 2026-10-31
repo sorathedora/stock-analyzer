@@ -12,7 +12,8 @@ import { AddToWatchlist } from "./AddToWatchlist";
 const FROM_FILINGS = new Set([
   "pb", "ev_cr", "eps_ttm", "roe_pct", "ebitda_margin_q_pct", "net_margin_q_pct", "debt_to_equity", "current_ratio",
   "free_cash_flow_ytd_cr", "revenue_q_cr", "net_profit_q_cr", "book_value_cr", "debt_cr", "cash_cr", "latest_quarter",
-  "promoter_pct", "promoter_pct_change", "fii_pct", "fii_pct_change", "dii_pct", "public_pct", "promoter_pledged_pct",
+  "promoter_pct", "promoter_pct_change", "fii_pct", "fii_pct_change", "dii_pct", "mutual_fund_pct", "mutual_fund_pct_change",
+  "retail_pct", "retail_pct_change", "public_pct", "promoter_pledged_pct",
 ]);
 
 export interface ViewState { preset: string; columns: string[]; query: string; sort: Sort }

@@ -126,7 +126,7 @@ function Results({ results }: { results: ResultRow[] }) {
 
 function Shareholding({ rows }: { rows: Record<string, unknown>[] }) {
   const sorted = [...rows].sort((a, b) => String(a.as_of).localeCompare(String(b.as_of)));
-  const lines: [string, string][] = [["promoter_pct", "Promoters"], ["fii_pct", "FIIs"], ["dii_pct", "DIIs"], ["mutual_fund_pct", "of which mutual funds"], ["public_pct", "Public"], ["promoter_pledged_pct", "Promoter shares pledged"]];
+  const lines: [string, string][] = [["promoter_pct", "Promoters"], ["fii_pct", "FIIs"], ["dii_pct", "DIIs"], ["mutual_fund_pct", "of which mutual funds"], ["retail_pct", "Retail (up to ₹2 lakh)"], ["public_pct", "Non-institutional"], ["promoter_pledged_pct", "Promoter shares pledged"]];
   return (
     <div style={{ overflow: "auto" }}>
       <table className="ftable">

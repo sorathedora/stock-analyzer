@@ -81,6 +81,10 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
         out["net_profit_q_cr"] = _owners_profit(q) / 1e7
         ebitda = q["profit_before_tax"] + q["finance_cost"].fillna(0) + q["depreciation"].fillna(0) - q["other_income"].fillna(0)
         out["ebitda_margin_q_pct"] = ebitda / q["revenue"] * 100
+        # Interest is a lender's main cost, so EBITDA says nothing for banks and NBFCs.
+        is_bank = q["is_bank"] if "is_bank" in q else pd.Series(False, index=q.index)
+        lender = (out["industry"] == "Financial Services") | is_bank.reindex(out.index).fillna(False).astype(bool)
+        out.loc[lender, "ebitda_margin_q_pct"] = np.nan
         out["net_margin_q_pct"] = q["net_profit"] / q["revenue"] * 100
 
         b = ytd  # balance sheet sits on the latest year-to-date row
@@ -142,7 +146,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None):
         s = shareholding.sort_values("as_of")
         latest = s.groupby("isin").tail(1).set_index("isin")
         previous = s.groupby("isin").nth(-2).set_index("isin") if len(s) > 1 else latest.iloc[0:0]
-        for c in ["promoter_pct", "fii_pct", "dii_pct", "public_pct", "promoter_pledged_pct"]:
+        for c in ["promoter_pct", "fii_pct", "dii_pct", "mutual_fund_pct", "retail_pct", "public_pct", "promoter_pledged_pct"]:
             if c in latest:
                 out[c] = latest[c]
                 if c in previous:

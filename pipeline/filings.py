@@ -173,7 +173,7 @@ SHP_CATEGORIES = {
 def parse_shareholding(content):
     """Holding percentages by category, plus promoter shares pledged."""
     root = ET.fromstring(content)
-    row = {}
+    row, pledged_flag = {}, None
     for el in root:
         name, ctx = _local(el.tag), el.get("contextRef") or ""
         if name == "Symbol" and "symbol" not in row:
@@ -186,7 +186,12 @@ def parse_shareholding(content):
             category = ctx[: -len("_ContextI")]
             if category in SHP_CATEGORIES:
                 row[SHP_CATEGORIES[category]] = _number(el.text) * 100
-        elif (name == "EncumberedSharesAsAPercentageOfTotalSharesHeld"
-              and ctx == "ShareholdingOfPromoterAndPromoterGroup_ContextI"):
+        elif (ctx == "ShareholdingOfPromoterAndPromoterGroup_ContextI" and "Pledge" in name
+              and "Percentage" in name and _number(el.text) is not None):
             row["promoter_pledged_pct"] = _number(el.text) * 100
+        elif name == "WhetherAnySharesHeldByPromotersAreEncumberedUnderPledged":
+            pledged_flag = (el.text or "").strip().lower()
+    # Companies with no pledge file only a "false" flag, not a percentage.
+    if "promoter_pledged_pct" not in row and pledged_flag == "false":
+        row["promoter_pledged_pct"] = 0.0
     return row
