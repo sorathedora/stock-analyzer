@@ -3,7 +3,7 @@
 .DS_Store
 .venv/
 __pycache__/
-data/
+/data/
 spike/
 dev/
 web/public/data/
