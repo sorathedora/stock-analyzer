@@ -10,4 +10,4 @@ database_id = "b505c3ed-e7aa-482a-99d0-e5d15ee27786"
 
 [vars]
 # The published Google Sheet (CSV) with GOOGLEFINANCE prices; see pipeline/google.py.
-LIVE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6qqKtA5CaHSEsBeWHLjUchbJLxCtVgKfsqo2unvaP37UQQSnJdmcrOujSVNBHOEhT5SlsSIzTP2Ji/pub?gid=297450029&single=true&output=csv"
+LIVE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6qqKtA5CaHSEsBeWHLjUchbJLxCtVgKfsqo2unvaP37UQQSnJdmcrOujSVNBHOEhT5SlsSIzTP2Ji/pub?output=csv"
