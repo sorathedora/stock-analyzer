@@ -115,3 +115,30 @@ def test_industry_pe_and_peg():
     assert r.loc["A", "eps_growth_pct"] == pytest.approx(21, abs=0.5)
     assert r.loc["A", "peg"] == pytest.approx(10 / 21, abs=0.02)
     assert pd.isna(r.loc["C", "peg"])                          # EPS fell, so no PEG
+
+
+def test_annual_report_fills_missing_fundamentals():
+    metrics = pd.DataFrame({
+        "isin": ["INE000A01011", "INE000B01011"], "name": ["Maker", "Lender"], "nse_symbol": ["MKR", "LND"],
+        "bse_code": [None, None], "industry": [None, "Financial Services"], "close": [100.0, 50.0],
+        "market_cap_cr": [1000.0, 500.0], "shares": [1e8, 1e8],
+    })
+    annual = pd.DataFrame({
+        "isin": ["INE000A01011", "INE000B01011"], "industry": ["Auto Parts", "Finance - NBFC"],
+        "fy_end": pd.Timestamp("2026-03-31"),
+        "equity_cr": [500.0, 400.0], "equity_prev_cr": [400.0, 400.0], "debt_cr": [100.0, 2000.0], "cash_cr": [50.0, 10.0],
+        "revenue_cr": [800.0, 300.0], "operating_profit_cr": [150.0, 250.0], "interest_cr": [10.0, 200.0],
+        "pbt_cr": [110.0, 60.0], "net_profit_cr": [90.0, 45.0],
+    })
+    r = compute(metrics, None, None, None, None, annual).set_index("nse_symbol")
+    m = r.loc["MKR"]
+    assert m["industry"] == "Auto Parts" and pd.isna(m["sector"])
+    assert m["pb"] == pytest.approx(100 / (500e7 / 1e8))           # 2.0
+    assert m["debt_to_equity"] == pytest.approx(0.2)
+    assert m["roe_pct"] == pytest.approx(90 / 450 * 100)            # average equity
+    assert m["roce_pct"] == pytest.approx(120 / 600 * 100)          # (PBT + interest) / (equity + debt)
+    assert m["ev_ebitda"] == pytest.approx((1000 + 100 - 50) / 150)
+    assert m["fundamentals_source"] == "annual report"
+    lender = r.loc["LND"]
+    assert pd.isna(lender["roce_pct"]) and pd.isna(lender["ev_ebitda"]) and pd.isna(lender["debt_to_equity"])
+    assert lender["roe_pct"] == pytest.approx(45 / 400 * 100)

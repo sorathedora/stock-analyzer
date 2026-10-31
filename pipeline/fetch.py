@@ -20,11 +20,11 @@ def _session():
     return _local.session
 
 
-def get(url, retries=3, timeout=60):
+def get(url, retries=3, timeout=60, html=False):
     """Return the response body, or None when the file does not exist.
 
     BSE answers missing files with an HTML page and status 200, so HTML
-    bodies are treated as missing too.
+    bodies are treated as missing too, unless html=True (for web pages).
     """
     for attempt in range(retries):
         time.sleep(PAUSE_SECONDS)
@@ -41,7 +41,7 @@ def get(url, retries=3, timeout=60):
             time.sleep(2 ** attempt * 5)
             continue
         r.raise_for_status()
-        if r.content[:200].lstrip().lower().startswith((b"<!doctype html", b"<html")):
+        if not html and r.content[:200].lstrip().lower().startswith((b"<!doctype html", b"<html")):
             return None
         return r.content
     return None

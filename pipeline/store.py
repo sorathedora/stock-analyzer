@@ -92,6 +92,7 @@ def save_shareholding(new):
 
 
 GOOGLE = DATA / "google_history.parquet"
+ANNUAL = DATA / "annual_reports.parquet"
 RATIOS = DATA / "ratios.parquet"
 
 
@@ -101,6 +102,11 @@ def load(path):
 
 def save_google(new):
     return _append(GOOGLE, new, ["isin", "date"])
+
+
+def save_annual(new):
+    """Rediff annual-report figures, one row per company page (re-reads replace)."""
+    return _append(ANNUAL, new, ["rediff_url"])
 
 
 def save_ratios(r):

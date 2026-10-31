@@ -1,0 +1,35 @@
+name: Import fundamentals
+on:
+  workflow_dispatch:
+    inputs:
+      fresh:
+        description: Re-read companies already imported (e.g. after new annual reports)
+        type: boolean
+        default: false
+concurrency:
+  group: fundamentals
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  fundamentals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: scripts/data_release.sh download
+      # Resumable: companies already in annual_reports.parquet are skipped,
+      # so a run that hits the time limit can simply be started again.
+      - run: python -m pipeline fundamentals ${{ inputs.fresh && '--fresh' || '' }}
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
+      - if: success() || failure()
+        run: scripts/data_release.sh upload annual_reports.parquet 'ratios.*' google_history.parquet

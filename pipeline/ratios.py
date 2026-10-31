@@ -81,7 +81,49 @@ def latest_rows(results):
     return quarter, ytd, year
 
 
-def compute(price_metrics, results=None, google=None, shareholding=None, eps_history=None):
+# Filled from the latest annual report wherever no newer NSE filing is on file.
+ANNUAL_METRICS = ["book_value_cr", "debt_cr", "cash_cr", "debt_to_equity", "roe_pct", "roce_pct", "pb", "ev_cr", "ev_ebitda"]
+
+
+def _fill_from_annual(out, annual, shares):
+    """Use Rediff's annual-report figures (standalone, ₹ crore) for companies
+    without results filings yet. Also takes Rediff's industry, which is finer
+    than NSE's broad sectors; NSE's label is kept as `sector`."""
+    a = (annual.dropna(subset=["isin"]).sort_values("fy_end")
+         .drop_duplicates("isin", keep="last").set_index("isin").reindex(out.index))
+    out["sector"] = out["industry"]
+    out["industry"] = a["industry"].fillna(out["industry"])
+
+    eq, debt, cash = a["equity_cr"], a["debt_cr"], a["cash_cr"]
+    eq_avg = ((eq + a["equity_prev_cr"]) / 2).fillna(eq)
+    capital = eq + debt.fillna(0)
+    ebit = a["pbt_cr"] + a["interest_cr"].fillna(0)
+    ebitda = a["operating_profit_cr"]
+    ev = out["market_cap_cr"] + debt.fillna(0) - cash.fillna(0)
+    d = pd.DataFrame({
+        "book_value_cr": eq, "debt_cr": debt, "cash_cr": cash,
+        "debt_to_equity": (debt / eq).where(eq > 0),
+        "roe_pct": (a["net_profit_cr"] / eq_avg * 100).where(eq_avg > 0),
+        "roce_pct": (ebit / capital * 100).where(capital > 0),
+        "pb": (out["close"] / (eq * 1e7 / shares)).where(eq > 0) if shares is not None else np.nan,
+        "ev_cr": ev, "ev_ebitda": (ev / ebitda).where(ebitda > 0),
+    }, index=out.index)
+    # Lenders: interest is the main cost, so ROCE, EV/EBITDA and D/E mislead.
+    lender = (a["interest_cr"] > 0.4 * a["revenue_cr"]) | (out["sector"] == "Financial Services")
+    d.loc[lender.fillna(False).astype(bool), ["roce_pct", "ev_ebitda", "debt_to_equity"]] = np.nan
+
+    filled = pd.Series(False, index=out.index)
+    for k in ANNUAL_METRICS:
+        cur = out[k] if k in out else pd.Series(np.nan, index=out.index, dtype="float64")
+        take = cur.isna() & d[k].notna()
+        filled |= take
+        out[k] = cur.where(~take, d[k])
+    from_filings = out["balance_sheet_date"].notna() if "balance_sheet_date" in out else pd.Series(False, index=out.index)
+    out["fundamentals_source"] = np.select([from_filings, filled], ["NSE filing", "annual report"], None)
+    out["annual_report_fy"] = a["fy_end"]
+
+
+def compute(price_metrics, results=None, google=None, shareholding=None, eps_history=None, annual=None):
     m = price_metrics.set_index("isin")
     out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
     shares = m.get("shares")
@@ -143,6 +185,9 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
         out.loc[lender, ["roce_pct", "ev_ebitda"]] = np.nan
         out["cash_from_operations_ytd_cr"] = b["cash_from_operations"] / 1e7
         out["free_cash_flow_ytd_cr"] = (b["cash_from_operations"] - b["capex"].fillna(0)) / 1e7
+
+    if annual is not None and not annual.empty:
+        _fill_from_annual(out, annual, shares)
 
     if google is not None and not google.empty:
         g = google.drop_duplicates("isin").set_index("isin")

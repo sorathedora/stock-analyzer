@@ -7,6 +7,7 @@
     python -m pipeline ratios             # rebuild ratios from stored data
     python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
     python -m pipeline archive START END  # re-read NSE's archive for stored days
+    python -m pipeline fundamentals       # import annual-report figures from Rediff (resumable)
     python -m pipeline export [DIR]       # write companies.json for the web app
 """
 import argparse
@@ -15,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
-from . import archive, collect, export, google, prices, ratios, store, universe
+from . import archive, collect, export, google, prices, ratios, rediff, store, universe
 from .bhavcopy import combine, fetch_bse, fetch_nse
 
 HISTORY_YEARS = 6  # enough for 5-year returns
@@ -163,7 +164,10 @@ def build_ratios(price_metrics=None, history=None):
     g = google.fetch()
     if g is not None:
         store.save_google(g.assign(date=price_metrics["as_of"].max()))
-    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history)
+    annual = store.load(store.ANNUAL)
+    if annual is not None and "fy_end" in annual:
+        annual = rediff.match_isins(annual.dropna(subset=["fy_end"]), pd.read_parquet(store.UNIVERSE))
+    r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history, annual)
     store.save_ratios(r)
     counts = r["pe_source"].value_counts().to_dict()
     print(f"ratios for {len(r)} companies; PE from {counts}; checks {r['pe_check'].value_counts().to_dict()}")
@@ -184,6 +188,9 @@ def main(argv=None):
     a = sub.add_parser("archive")
     a.add_argument("start")
     a.add_argument("end")
+    f = sub.add_parser("fundamentals")
+    f.add_argument("--limit", type=int, default=None, help="read only the first N companies (testing)")
+    f.add_argument("--fresh", action="store_true", help="re-read companies already imported")
     e = sub.add_parser("export")
     e.add_argument("out_dir", nargs="?", default="web/public/data")
     args = ap.parse_args(argv)
@@ -191,6 +198,13 @@ def main(argv=None):
     if args.cmd == "archive":
         refetch_archive(args.start, args.end)
         rebuild(None)
+        return
+    if args.cmd == "fundamentals":
+        urls = rediff.company_urls()[: args.limit]
+        have = store.load(store.ANNUAL)
+        done = set() if args.fresh or have is None else set(have.loc[have["fy_end"].notna(), "rediff_url"])
+        rediff.import_all(urls, done=done, save=store.save_annual)
+        build_ratios()
         return
     if args.cmd == "export":
         export.write(args.out_dir)
