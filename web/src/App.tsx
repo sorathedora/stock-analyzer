@@ -46,7 +46,8 @@ function Rail({ d, onSearch, onNewList, onSync, open, onClose }: { d: Dataset; o
       <div className="fresh">
         {d.live ? (
           <div data-tip={`Google Finance prices (up to 20 minutes delayed) for ${d.live.count.toLocaleString("en-IN")} companies, on top of the ${format(d.asOf, "date")} close. PE, market cap and other price-based figures move with them; official closing figures arrive in the evening.`}>
-            <span className="dot live" style={{ background: "var(--up)" }} />Live <b>{new Date(d.live.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</b> · ~20 min delay
+            <span className="dot live" style={{ background: "var(--up)" }} />Live prices · checked <b>{new Date(d.live.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</b>
+            <div className="muted">Quotes up to 20 min behind · refresh every 5 min</div>
           </div>
         ) : (
           <div><span className="dot" style={{ background: "var(--ok)" }} />Prices <b>{format(d.asOf, "date")} close</b></div>
