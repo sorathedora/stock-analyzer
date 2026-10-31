@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { BY_KEY } from "../data/columns";
-import { format, isNum } from "../data/format";
+import { format, isNum, ordinal } from "../data/format";
 import { rank, type Company, type Dataset } from "../data/store";
 
 export const PEER_METRICS = ["pe", "pb", "roe_pct", "dividend_yield_pct", "ret_1y", "debt_to_equity", "ebitda_margin_q_pct", "market_cap_cr"];
@@ -28,7 +28,7 @@ export function IndustryPosition({ d, c, metrics = PEER_METRICS }: { d: Dataset;
           <div className="vs" key={k}>
             <span className="soft" data-tip={col.help}>{col.label}</span>
             <span className="num" style={{ fontWeight: 500 }}>{format(c[k], col.format)}</span>
-            <span className="track" data-tip={`${r!.pct}th percentile of ${r!.n} ${r!.scope === "all companies" ? "companies" : `${r!.scope} companies`} · median ${format(r!.median, col.format)}${good === null ? "" : good ? " · better than most" : " · weaker than most"}`}>
+            <span className="track" data-tip={`${ordinal(r!.pct)} percentile of ${r!.n} ${r!.scope === "all companies" ? "companies" : `${r!.scope} companies`} · median ${format(r!.median, col.format)}${good === null ? "" : good ? " · better than most" : " · weaker than most"}`}>
               <u style={{ left: "50%" }} />
               <i style={{ left: `${r!.pct}%` }} />
             </span>

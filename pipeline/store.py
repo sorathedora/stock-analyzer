@@ -93,6 +93,7 @@ def save_shareholding(new):
 
 GOOGLE = DATA / "google_history.parquet"
 ANNUAL = DATA / "annual_reports.parquet"
+NAMES = DATA / "names.parquet"
 RATIOS = DATA / "ratios.parquet"
 
 
@@ -102,6 +103,12 @@ def load(path):
 
 def save_google(new):
     return _append(GOOGLE, new, ["isin", "date"])
+
+
+def save_names(new):
+    """Every company name/symbol seen in a price file; the latest sighting wins."""
+    new = new.dropna(subset=["isin"]).sort_values("last_seen")
+    return _append(NAMES, new, ["isin", "exchange"])
 
 
 def save_annual(new):
@@ -128,6 +135,10 @@ def save_universe(today, day):
 
 def save_metrics(metrics, universe):
     m = universe[["isin", "name", "nse_symbol", "bse_code", "industry"]].merge(metrics, on="isin", how="right")
+    # Never show a bare ISIN: fall back to the last exchange symbol seen.
+    m["name"] = m["name"].fillna(m["symbol"])
+    m["nse_symbol"] = m["nse_symbol"].where(m["nse_symbol"].notna() | (m["exchange"] != "NSE"), m["symbol"])
+    m["bse_code"] = m["bse_code"].where(m["bse_code"].notna() | (m["exchange"] != "BSE"), m["symbol"])
     m.to_parquet(METRICS, index=False)
     numeric = m.select_dtypes("number").columns
     m.assign(**m[numeric].round(2)).to_csv(DATA / "price_metrics.csv", index=False)

@@ -52,6 +52,7 @@ export function WatchlistPage({ d }: { d: Dataset }) {
   const nav = useNavigate();
   const w = lists.find((x) => x.id === id) ?? lists[0];
   const [importing, setImporting] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
   const [renaming, setRenaming] = useState(params.get("rename") === "1");
   const [sort, setSort] = useState(defaultView().sort);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -61,7 +62,8 @@ export function WatchlistPage({ d }: { d: Dataset }) {
   if (!w) return <div className="empty"><h3>No watchlists yet</h3><button className="btn primary" onClick={() => nav(`/w/${actions.create("My watchlist")}`)}>Create one</button></div>;
 
   const view: ViewState = { ...defaultView(), preset: w.preset ?? "Overview", columns: w.columns ?? defaultView().columns, query: w.query ?? "", filters: w.filters ?? {}, sort };
-  const missing = w.isins.length - rows.length;
+  const missingIsins = w.isins.filter((i) => !d.byIsin.has(i));
+  const missing = missingIsins.length;
   const finishRename = (v: string) => { actions.rename(w.id, v); setRenaming(false); params.delete("rename"); setParams(params, { replace: true }); };
 
   return (
@@ -73,7 +75,11 @@ export function WatchlistPage({ d }: { d: Dataset }) {
           ? <input ref={nameRef} defaultValue={w.name} autoFocus onBlur={(e) => finishRename(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") finishRename(e.currentTarget.value); if (e.key === "Escape") setRenaming(false); }} />
           : <span onDoubleClick={() => setRenaming(true)} data-tip="Double-click to rename">{w.name}</span>}
-        meta={<>{rows.length} {rows.length === 1 ? "company" : "companies"}{missing > 0 ? ` · ${missing} not found in today's data` : ""} · close {format(d.asOf, "date")}</>}
+        meta={<>
+          {rows.length} {rows.length === 1 ? "company" : "companies"}
+          {missing > 0 && <> · <a style={{ color: "var(--accent)", cursor: "pointer" }} onClick={() => setShowMissing((s) => !s)}>{missing} without market data</a></>}
+          {" "}· close {format(d.asOf, "date")}
+        </>}
         rows={rows}
         view={view}
         onView={(v) => { setSort(v.sort); actions.setView(w.id, { preset: v.preset, columns: v.columns, query: v.query, filters: v.filters }); }}
@@ -93,6 +99,27 @@ export function WatchlistPage({ d }: { d: Dataset }) {
           </div>
         }
       />
+      {showMissing && missing > 0 && (
+        <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && setShowMissing(false)}>
+          <div className="modal" role="dialog" aria-label="ISINs without market data">
+            <div className="body">
+              <h2>{missing} ISINs without market data</h2>
+              <p className="soft">
+                These ISINs are in your list but had no trades on NSE or BSE since October 2020, so there's no price or ratio to show.
+                Usually that means the company was delisted, merged or suspended; ISINs starting <span className="mono">INF</span> are mutual funds or ETFs.
+                They're kept in the list and will show up if they start trading again.
+              </p>
+              <div style={{ maxHeight: 260, overflow: "auto", columns: 3, fontFamily: "var(--mono)", fontSize: 12, margin: "8px 0 14px" }}>
+                {missingIsins.map((i) => <div key={i}>{i}{i.startsWith("INF") ? " · fund" : ""}</div>)}
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button className="btn" onClick={() => { actions.drop(w.id, missingIsins); setShowMissing(false); }}>Remove them from the list</button>
+                <button className="btn primary" onClick={() => setShowMissing(false)}>Keep them</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {importing && <ImportDialog d={d} onImport={(isins) => actions.add(w.id, isins)} onClose={() => setImporting(false)} />}
     </>
   );

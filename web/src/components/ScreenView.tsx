@@ -5,7 +5,8 @@ import { format } from "../data/format";
 import type { Company, Dataset } from "../data/store";
 import { CompanyTable, sortRows, type Sort } from "./CompanyTable";
 import { ColumnPicker } from "./Dialogs";
-import { describe, FilterPopover, passes, type ColFilter, type Filters } from "./ColumnFilter";
+import { describe, filterLabel, FilterPopover, isActive, MetricPicker, passes, QUICK, type ColFilter, type Filters } from "./ColumnFilter";
+import { RANKED, RankContext, sortedValues, type RankMode } from "./Cell";
 import { QueryBar, useQuery } from "./QueryBar";
 import { QuickView } from "./QuickView";
 import { AddToWatchlist } from "./AddToWatchlist";
@@ -18,6 +19,13 @@ const FROM_FILINGS = new Set([
 ]);
 
 export interface ViewState { preset: string; columns: string[]; query: string; sort: Sort; filters?: Filters }
+
+/** Filters always offered in the bar, in this order. */
+const PINNED = ["industry", "market_cap_cr", "pe", "roe_pct"];
+
+function readRankMode(): RankMode {
+  try { return localStorage.getItem("rank.mode") === "industry" ? "industry" : "shown"; } catch { return "shown"; }
+}
 
 export const defaultView = (): ViewState => ({ preset: "Overview", columns: PRESETS.Overview, query: "", sort: { key: "market_cap_cr", dir: -1 } });
 
@@ -57,11 +65,24 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   const [open, setOpen] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
   const [filterAt, setFilterAt] = useState<{ key: string; x: number; y: number } | null>(null);
+  const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
+  const [advanced, setAdvanced] = useState(!!view.query);
+  const [rankMode, setRankModeState] = useState<RankMode>(readRankMode);
+  const setRankMode = (m: RankMode) => { setRankModeState(m); try { localStorage.setItem("rank.mode", m); } catch { /* ignore */ } };
   const { compiled, error } = useQuery(view.query);
   // Preset views always use the preset's current columns; only Custom keeps its own list.
   const columns = view.preset !== "Custom" && PRESETS[view.preset] ? PRESETS[view.preset] : view.columns;
 
-  const shown = useMemo(() => sortRows(rows.filter((r) => compiled.test(r) && passes(r, view.filters)), view.sort, d), [rows, compiled, view.filters, view.sort, d]);
+  const queried = useMemo(() => rows.filter((r) => compiled.test(r)), [rows, compiled]);
+  const shown = useMemo(() => sortRows(queried.filter((r) => passes(r, view.filters)), view.sort, d), [queried, view.filters, view.sort, d]);
+  // Bars rank against the rows shown, so they move as filters change.
+  const rankCtx = useMemo(() => ({ mode: rankMode, dist: rankMode === "shown" ? sortedValues(shown, RANKED) : new Map() }), [rankMode, shown]);
+  /** Rows passing every filter except `key`: what that filter's editor works on. */
+  const others = (key: string) => {
+    const rest = { ...view.filters };
+    delete rest[key];
+    return queried.filter((r) => passes(r, rest));
+  };
 
   // Drop selections that are no longer visible.
   useEffect(() => {
@@ -89,7 +110,6 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         case "x": case " ":
           if (cursor) { e.preventDefault(); const n = new Set(selected); if (n.has(cursor)) n.delete(cursor); else n.add(cursor); setSelected(n); }
           break;
-        case "/": e.preventDefault(); document.querySelector<HTMLInputElement>(".query input")?.focus(); break;
         case "w": document.querySelector<HTMLButtonElement>(".drawer.open [data-add-watchlist]")?.click(); break;
         case "c": if (selected.size >= 2) nav(`/compare?i=${[...selected].join(",")}`); break;
       }
@@ -129,18 +149,36 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
           ))}
         </div>
         <button className="btn" onClick={() => setPicker(true)} data-tip="Choose and order columns">Columns</button>
-        <QueryBar value={view.query} onChange={(q) => onView({ ...view, query: q })} count={shown.length} total={rows.length} error={error} />
+        <span style={{ flex: 1 }} />
         <button className="btn" onClick={() => download(`${exportName}.csv`, toCsv(shown, columns))} data-tip="Download what you see as CSV (opens in Excel)">Export</button>
       </div>
-      {activeFilters.length > 0 && (
-        <div className="toolbar" style={{ marginTop: -2 }}>
-          {activeFilters.map(([k, f]) => (
-            <span className="chip" key={k}>
-              <button style={{ padding: 0, color: "inherit" }} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setFilterAt({ key: k, x: r.left, y: r.bottom }); }}>{describe(k, f)}</button>
-              <button aria-label={`Remove filter ${describe(k, f)}`} onClick={() => setFilter(k, null)}>✕</button>
+      <div className="filterbar" role="group" aria-label="Filters">
+        {[...PINNED, ...Object.keys(view.filters ?? {}).filter((k) => !PINNED.includes(k) && !QUICK[k])].map((k) => {
+          const f = view.filters?.[k];
+          const on = isActive(k, f);
+          return (
+            <span key={k} className={`fpill ${on ? "on" : ""}`} role="button" tabIndex={0}
+              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setFilterAt({ key: k, x: r.left, y: r.bottom }); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { const r = e.currentTarget.getBoundingClientRect(); setFilterAt({ key: k, x: r.left, y: r.bottom }); } }}>
+              {on ? describe(k, f!) : filterLabel(k)}
+              {on ? <button className="x" aria-label={`Remove ${describe(k, f!)}`} onClick={(e) => { e.stopPropagation(); setFilter(k, null); }}>✕</button> : <span aria-hidden="true">▾</span>}
             </span>
-          ))}
-          <button className="btn ghost sm" onClick={() => onView({ ...view, filters: {} })}>Clear filters</button>
+          );
+        })}
+        <button className="fpill" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAdding({ x: r.left, y: r.bottom }); }}>+ Add filter</button>
+        <span className="fsep" />
+        {Object.entries(QUICK).map(([k, q]) => {
+          const on = !!view.filters?.[k]?.on;
+          return <button key={k} className={`fpill ${on ? "on" : ""}`} data-tip={q.help} aria-pressed={on} onClick={() => setFilter(k, on ? null : { on: true })}>{q.label}</button>;
+        })}
+        <span className="fsep" />
+        <button className={`fpill ${advanced ? "on" : ""}`} data-tip="Write a formula, e.g. pe < industry_pe and roce > 20" onClick={() => setAdvanced((a) => !a)}>ƒ Advanced</button>
+        <span className="soft num" style={{ marginLeft: "auto" }}>{shown.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")}</span>
+        {(activeFilters.length > 0 || view.query) && <button className="btn ghost sm" onClick={() => onView({ ...view, filters: {}, query: "" })}>Reset</button>}
+      </div>
+      {advanced && (
+        <div className="toolbar" style={{ marginTop: -4 }}>
+          <QueryBar value={view.query} onChange={(q) => onView({ ...view, query: q })} count={shown.length} total={rows.length} error={error} />
         </div>
       )}
       {fromFilings.length > 0 && filed < rows.length * 0.8 && (
@@ -150,19 +188,28 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
           Hover a value to see its source.
         </div>
       )}
+      <RankContext.Provider value={rankCtx}>
       <CompanyTable
         d={d} rows={shown} columns={columns} sort={view.sort} onSort={(s) => onView({ ...view, sort: s })}
         selected={selected} onSelect={setSelected} cursor={cursor} onOpen={openRow}
         filters={view.filters} onFilter={(key, at) => setFilterAt({ key, ...at })}
         onRemove={onRemove ? (i) => onRemove([i]) : undefined}
         empty={rows.length === 0 ? empty : (
-          <div className="empty"><h3>No companies match</h3>Try loosening the query or the column filters.</div>
+          <div className="empty"><h3>No companies match</h3>Loosen a filter, or <button className="btn sm" onClick={() => onView({ ...view, filters: {}, query: "" })}>reset all filters</button></div>
         )}
       />
+      </RankContext.Provider>
       {shown.length > 0 && (
         <div className="muted num" style={{ padding: "0 20px 10px", fontSize: 12, marginTop: -12 }}>
           Median of {shown.length.toLocaleString("en-IN")} shown · PE {format(medianOf("pe"), "ratio")} · 1Y {format(medianOf("ret_1y"), "signed")} · Div yield {format(medianOf("dividend_yield_pct"), "pct")}
-          <span style={{ float: "right" }}><kbd>J</kbd> <kbd>K</kbd> move · <kbd>Enter</kbd> open · <kbd>X</kbd> select · <kbd>/</kbd> filter · <kbd>⌘K</kbd> search</span>
+          <span className="rankmode" style={{ marginLeft: 16 }}>
+            Bars rank within
+            <span className="seg" style={{ padding: 1 }}>
+              <button className={rankMode === "shown" ? "on" : ""} onClick={() => setRankMode("shown")} data-tip="Each bar shows where the company sits among the rows shown; it changes as you filter">rows shown</button>
+              <button className={rankMode === "industry" ? "on" : ""} onClick={() => setRankMode("industry")} data-tip="Each bar shows where the company sits within its own industry">its industry</button>
+            </span>
+          </span>
+          <span style={{ float: "right" }}><kbd>J</kbd> <kbd>K</kbd> move · <kbd>Enter</kbd> open · <kbd>X</kbd> select · <kbd>⌘K</kbd> search</span>
         </div>
       )}
       <div className={`tray ${sel.length >= 1 ? "show" : ""}`}>
@@ -175,12 +222,13 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
       <QuickView d={d} isin={open} onClose={() => setOpen(null)} onPick={openRow} />
       {filterAt && (
         <FilterPopover
-          k={filterAt.key} at={filterAt} value={view.filters?.[filterAt.key]}
-          values={rows.map((r) => r[filterAt.key]).filter((v): v is number => typeof v === "number" && Number.isFinite(v))}
+          k={filterAt.key} at={filterAt} value={view.filters?.[filterAt.key]} rows={others(filterAt.key)}
+          countFor={(k, f) => others(k).filter((r) => passes(r, { [k]: f })).length}
           onApply={(f) => { setFilter(filterAt.key, f); setFilterAt(null); }}
           onClose={() => setFilterAt(null)}
         />
       )}
+      {adding && <MetricPicker at={adding} onClose={() => setAdding(null)} onPick={(k) => { setAdding(null); setFilterAt({ key: k, ...adding }); }} />}
       {picker && <ColumnPicker columns={columns} onChange={(c) => onView({ ...view, preset: "Custom", columns: c })} onClose={() => setPicker(false)} />}
     </div>
   );

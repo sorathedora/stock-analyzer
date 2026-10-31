@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette";
+import { NewWatchlistDialog } from "./components/Dialogs";
 import { Tooltips } from "./components/visuals";
 import { format } from "./data/format";
 import { load, loadError, useData, type Dataset } from "./data/store";
@@ -10,9 +11,8 @@ import { CompanyPage } from "./pages/CompanyPage";
 import { ComparePage } from "./pages/ComparePage";
 import { AllPage, IndustriesPage, IndustryPage, WatchlistPage } from "./pages/Screens";
 
-function Rail({ d, onSearch, open, onClose }: { d: Dataset; onSearch: () => void; open: boolean; onClose: () => void }) {
+function Rail({ d, onSearch, onNewList, open, onClose }: { d: Dataset; onSearch: () => void; onNewList: () => void; open: boolean; onClose: () => void }) {
   const lists = useWatchlists();
-  const nav = useNavigate();
   const theme = useTheme();
   const active = d.companies.filter((c) => c.active).length;
   return (
@@ -23,7 +23,7 @@ function Rail({ d, onSearch, open, onClose }: { d: Dataset; onSearch: () => void
       </div>
       <button className="searchbox" onClick={onSearch}><span>Search</span><kbd>⌘K</kbd></button>
       <div style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <div className="sec">Watchlists<button aria-label="New watchlist" data-tip="New watchlist" onClick={() => nav(`/w/${actions.create("New watchlist")}?rename=1`)}>+</button></div>
+        <div className="sec">Watchlists<button aria-label="New watchlist" data-tip="New watchlist (from a file, a pasted list, or empty)" onClick={onNewList}>+</button></div>
         <nav className="nav">
           {lists.map((w) => (
             <NavLink key={w.id} to={`/w/${w.id}`}><span>{w.name}</span><span className="count num">{w.isins.length}</span></NavLink>
@@ -56,6 +56,8 @@ export function App() {
   const d = useData();
   const [palette, setPalette] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [newList, setNewList] = useState(false);
+  const nav = useNavigate();
   useEffect(() => { void load(); void syncFromServer(); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -79,7 +81,7 @@ export function App() {
   }
   return (
     <div className="app">
-      <Rail d={d} onSearch={() => { setMenu(false); setPalette(true); }} open={menu} onClose={() => setMenu(false)} />
+      <Rail d={d} onSearch={() => { setMenu(false); setPalette(true); }} onNewList={() => { setMenu(false); setNewList(true); }} open={menu} onClose={() => setMenu(false)} />
       {menu && <div className="railscrim" onClick={() => setMenu(false)} />}
       <main className="main">
         <div className="mobilebar">
@@ -98,7 +100,11 @@ export function App() {
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
-      <CommandPalette d={d} open={palette} onClose={() => setPalette(false)} />
+      <CommandPalette d={d} open={palette} onClose={() => setPalette(false)} onNewList={() => setNewList(true)} />
+      {newList && (
+        <NewWatchlistDialog d={d} onClose={() => setNewList(false)}
+          onCreate={(name, isins) => { const id = actions.create(name, isins); setNewList(false); nav(`/w/${id}`); }} />
+      )}
       <Tooltips />
     </div>
   );

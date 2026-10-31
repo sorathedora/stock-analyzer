@@ -7,6 +7,7 @@
     python -m pipeline ratios             # rebuild ratios from stored data
     python -m pipeline sheet [PATH]       # write the Google Finance sheet (.xlsx)
     python -m pipeline archive START END  # re-read NSE's archive for stored days
+    python -m pipeline names START END [--every N]  # company names from past price files
     python -m pipeline fundamentals       # import annual-report figures from Rediff (resumable)
     python -m pipeline export [DIR]       # write companies.json for the web app
 """
@@ -55,7 +56,9 @@ def fetch_day(day):
     pe = arc.get("pe")
     if pe is not None:
         pe = _with_isin(pe, symbol_to_isin)
-    return {"prices": rows, "actions": actions, "pe": pe, "nse": nse, "bse": bse}
+    names = pd.concat([f.assign(last_seen=pd.Timestamp(day))[["isin", "exchange", "symbol", "name", "last_seen"]]
+                       for f in (nse, bse) if f is not None], ignore_index=True)
+    return {"prices": rows, "actions": actions, "pe": pe, "names": names, "nse": nse, "bse": bse}
 
 
 def fetch_range(start, end, workers=1, skip_stored=False):
@@ -74,7 +77,7 @@ def fetch_range(start, end, workers=1, skip_stored=False):
         # Store every 60 days so memory stays small and progress is saved.
         for i in range(0, len(days), 60):
             chunk = days[i:i + 60]
-            batch = {"prices": [], "actions": [], "pe": []}
+            batch = {"prices": [], "actions": [], "pe": [], "names": []}
             for day, got in zip(chunk, pool.map(fetch_day_safely, chunk)):
                 if isinstance(got, Exception):
                     print(f"{day.date()} FAILED: {got!r}")
@@ -89,7 +92,7 @@ def fetch_range(start, end, workers=1, skip_stored=False):
                 n_actions = 0 if got["actions"] is None else len(got["actions"])
                 print(f"{day.date()} {len(got['prices'])} companies, {n_actions} corporate actions")
             for key, save in (("prices", store.save_prices), ("actions", store.save_actions),
-                              ("pe", store.save_nse_pe)):
+                              ("pe", store.save_nse_pe), ("names", store.save_names)):
                 frames = [f for f in batch[key] if f is not None and not f.empty]
                 if frames:
                     save(pd.concat(frames, ignore_index=True))
@@ -130,6 +133,50 @@ def refetch_archive(start, end):
     print(f"{len(days)} days re-read: {sum(len(a) for a in actions)} corporate actions")
 
 
+def fill_names(start, end, every=1):
+    """Read past price files only for company names (BSE files always carry
+    them). Reading one day in `every` is enough for most companies."""
+    days = list(pd.bdate_range(start, end))[::every]
+
+    def one(day):
+        try:
+            return [f.assign(last_seen=day)[["isin", "exchange", "symbol", "name", "last_seen"]]
+                    for f in (fetch_bse(day), fetch_nse(day)) if f is not None]
+        except Exception as e:
+            print(f"{day.date()} skipped: {e!r}")
+            return []
+    frames = []
+    with ThreadPoolExecutor(max_workers=BACKFILL_WORKERS) as pool:
+        for got in pool.map(one, days):
+            frames.extend(got)
+    if frames:
+        store.save_names(pd.concat(frames, ignore_index=True))
+    print(f"{len(days)} days read for names")
+
+
+def with_names(u):
+    """Add companies that didn't trade on the day the list was built, using
+    the last name and symbol seen for them."""
+    names = store.load(store.NAMES)
+    if names is None:
+        return u
+    names = names.dropna(subset=["isin"]).sort_values("last_seen")
+    nse = names[names["exchange"] == "NSE"].drop_duplicates("isin", keep="last").set_index("isin")
+    bse = names[names["exchange"] == "BSE"].drop_duplicates("isin", keep="last").set_index("isin")
+    missing = sorted((set(nse.index) | set(bse.index)) - set(u["isin"]))
+    add = pd.DataFrame({"isin": missing})
+    add["nse_symbol"] = add["isin"].map(nse["symbol"])
+    add["bse_code"] = add["isin"].map(bse["symbol"])
+    add["name"] = add["isin"].map(nse["name"]).fillna(add["isin"].map(bse["name"])).fillna(add["nse_symbol"])
+    add["listed_on"] = [("NSE+BSE" if n and b else "NSE" if n else "BSE") for n, b in zip(add["nse_symbol"].notna(), add["bse_code"].notna())]
+    add["last_seen"] = add["isin"].map(names.drop_duplicates("isin", keep="last").set_index("isin")["last_seen"])
+    # Fill names still blank in the list itself.
+    u = u.copy()
+    blank = u["name"].isna()
+    u.loc[blank, "name"] = u.loc[blank, "isin"].map(nse["name"]).fillna(u.loc[blank, "isin"].map(bse["name"]))
+    return pd.concat([u, add], ignore_index=True)
+
+
 def rebuild(latest):
     if latest is not None and latest[1] is not None and latest[2] is not None:
         day, nse, bse = latest
@@ -139,6 +186,7 @@ def rebuild(latest):
     since = pd.Timestamp.today().year - HISTORY_YEARS
     p, actions, links = prices.link_isins(store.load_prices(since_year=since), store.load_actions())
     # Old ISINs of split shares now live under their current ISIN.
+    u = with_names(u)
     u = u[~u["isin"].isin(links)]
     m = store.save_metrics(prices.metrics(p, actions), u)
     prices.adjustments(p, actions).to_csv(store.DATA / "adjustments.csv", index=False)
@@ -166,7 +214,7 @@ def build_ratios(price_metrics=None, history=None):
         store.save_google(g.assign(date=price_metrics["as_of"].max()))
     annual = store.load(store.ANNUAL)
     if annual is not None and "fy_end" in annual:
-        annual = rediff.match_isins(annual.dropna(subset=["fy_end"]), pd.read_parquet(store.UNIVERSE))
+        annual = rediff.match_isins(annual.dropna(subset=["fy_end"]), with_names(pd.read_parquet(store.UNIVERSE)))
     r = ratios.compute(price_metrics, store.load(store.RESULTS), g, store.load(store.SHAREHOLDING), history, annual)
     store.save_ratios(r)
     counts = r["pe_source"].value_counts().to_dict()
@@ -185,6 +233,10 @@ def main(argv=None):
     sub.add_parser("ratios")
     s = sub.add_parser("sheet")
     s.add_argument("path", nargs="?", default="google_sheet.xlsx")
+    n = sub.add_parser("names")
+    n.add_argument("start")
+    n.add_argument("end")
+    n.add_argument("--every", type=int, default=1, help="read one day in N")
     a = sub.add_parser("archive")
     a.add_argument("start")
     a.add_argument("end")
@@ -195,6 +247,10 @@ def main(argv=None):
     e.add_argument("out_dir", nargs="?", default="web/public/data")
     args = ap.parse_args(argv)
 
+    if args.cmd == "names":
+        fill_names(args.start, args.end, args.every)
+        rebuild(None)
+        return
     if args.cmd == "archive":
         refetch_archive(args.start, args.end)
         rebuild(None)

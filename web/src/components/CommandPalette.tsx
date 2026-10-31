@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { num, signed, tone } from "../data/format";
 import { search, type Dataset } from "../data/store";
 import { toggleTheme } from "../data/theme";
-import { actions as wl, useWatchlists } from "../data/watchlists";
+import { useWatchlists } from "../data/watchlists";
 
 type Item = { id: string; group: string; label: React.ReactNode; hint?: React.ReactNode; run: () => void };
 
-export function CommandPalette({ d, open, onClose }: { d: Dataset; open: boolean; onClose: () => void }) {
+export function CommandPalette({ d, open, onClose, onNewList }: { d: Dataset; open: boolean; onClose: () => void; onNewList: () => void }) {
   const [q, setQ] = useState("");
   const [i, setI] = useState(0);
   const nav = useNavigate();
@@ -30,11 +30,11 @@ export function CommandPalette({ d, open, onClose }: { d: Dataset; open: boolean
       { id: "all", group: "Go to", label: "All companies", run: go("/all") },
       { id: "ind", group: "Go to", label: "Industries", run: go("/industries") },
       ...d.industries.filter(() => s.length > 1).map((n) => ({ id: `i-${n}`, group: "Industries", label: n, run: go(`/industries/${encodeURIComponent(n)}`) })),
-      { id: "new", group: "Actions", label: "New watchlist", hint: <kbd>N</kbd>, run: () => { const id = wl.create("New watchlist"); nav(`/w/${id}?rename=1`); onClose(); } },
+      { id: "new", group: "Actions", label: "New watchlist", run: () => { onClose(); onNewList(); } },
       { id: "theme", group: "Actions", label: "Toggle dark mode", run: () => { toggleTheme(); onClose(); } },
     ].filter((x) => match(typeof x.label === "string" ? x.label : x.group));
     return [...companies, ...pages].slice(0, 30);
-  }, [d, q, lists, nav, onClose]);
+  }, [d, q, lists, nav, onClose, onNewList]);
 
   if (!open) return null;
   let lastGroup = "";

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BY_KEY, COLUMNS, VISUAL } from "../data/columns";
 import type { Dataset } from "../data/store";
-import { parseIsins } from "../data/watchlists";
+import { baseName, parseCells, readFile, textCells, type Parsed, type Sheet } from "../data/importFile";
 
 function Modal({ title, onClose, children, width = 560 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
   return (
@@ -19,36 +19,113 @@ function Modal({ title, onClose, children, width = 560 }: { title: string; onClo
   );
 }
 
-/** Paste ISINs / NSE symbols / BSE codes, or load a CSV or text file. */
-export function ImportDialog({ d, onImport, onClose }: { d: Dataset; onImport: (isins: string[]) => void; onClose: () => void }) {
+/** Paste box + file picker that reads ISINs (or symbols) and summarises what matched. */
+function ListInput({ d, onParsed, onFileName }: { d: Dataset; onParsed: (p: Parsed | null) => void; onFileName?: (name: string) => void }) {
   const [text, setText] = useState("");
+  const [sheets, setSheets] = useState<Sheet[] | null>(null);
+  const [sheet, setSheet] = useState(0);
+  const [file, setFile] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const lookup = (t: string) => d.byTicker.get(t)?.isin;
-  const parsed = parseIsins(text, lookup);
-  // Keep well-formed ISINs we have no data for (delisted, suspended, funds):
-  // the watchlist shows them as missing and picks them up if data appears.
-  const keepIsins = parsed.unknown.filter((t) => /^IN[A-Z0-9]{10}$/i.test(t)).map((t) => t.toUpperCase());
-  const found = [...parsed.found, ...keepIsins];
-  const unknown = parsed.unknown.filter((t) => !/^IN[A-Z0-9]{10}$/i.test(t));
+  const known = (i: string) => d.byIsin.has(i);
+  const parse = (cells: string[]) => parseCells(cells, lookup, known);
+
+  const cells = sheets ? sheets[sheet]?.cells ?? [] : textCells(text);
+  const parsed = cells.length ? parse(cells) : null;
+  const report = parsed && parsed.by !== "none" ? parsed : null;
+  useEffect(() => { onParsed(report); }, [report?.found.length, report?.noData.length, sheet, text, sheets]);
+
+  const load = async (f: File) => {
+    setErr(""); setBusy(true);
+    try {
+      const s = await readFile(f);
+      // Start on the sheet with the most ISINs or codes.
+      const scores = s.map((sh) => { const p = parse(sh.cells); return p.found.length + p.noData.length; });
+      setSheets(s); setSheet(scores.indexOf(Math.max(...scores))); setFile(f.name); setText("");
+      onFileName?.(baseName(f));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't read that file.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div>
+      {!sheets ? (
+        <textarea className="input" style={{ width: "100%", height: 140, padding: 10, fontFamily: "var(--mono)", fontSize: 12, resize: "vertical" }}
+          value={text} onChange={(e) => setText(e.target.value)} placeholder={"Paste ISINs (or NSE symbols / BSE codes), one per line, or a column copied from Excel\nINE002A01018\nINE467B01029"}
+          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void load(f); }} />
+      ) : (
+        <div className="banner" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>📄 <b>{file}</b></span>
+          {sheets.length > 1 && (
+            <select className="input" style={{ height: 26 }} value={sheet} onChange={(e) => setSheet(Number(e.target.value))} aria-label="Sheet">
+              {sheets.map((s, i) => <option key={s.name} value={i}>Sheet: {s.name}</option>)}
+            </select>
+          )}
+          <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => { setSheets(null); setFile(null); }}>Use a different list</button>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <label className="btn">
+          {busy ? "Reading…" : "Choose file (.xlsx, .csv)"}
+          <input type="file" accept=".xlsx,.csv,.txt,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void load(f); }} />
+        </label>
+        <span className="muted" style={{ fontSize: 12 }}>or drop a file on the box</span>
+      </div>
+      {err && <div style={{ color: "var(--down)", marginTop: 8 }}>{err}</div>}
+      {cells.length > 0 && (
+        <div className="soft" style={{ marginTop: 10 }}>
+          {report ? <>
+            <b>{report.found.length.toLocaleString("en-IN")}</b> {report.found.length === 1 ? "company" : "companies"} found{report.by === "isin" ? " by ISIN" : " by symbol/code"}
+            {report.noData.length > 0 && <> · <b>{report.noData.length}</b> ISINs with no market data (delisted, suspended or funds), kept so you can see them</>}
+            {report.unknown.length > 0 && <> · not recognised: {report.unknown.slice(0, 8).join(", ")}{report.unknown.length > 8 ? "…" : ""}</>}
+          </> : <span style={{ color: "var(--down)" }}>No ISINs, NSE symbols or BSE codes found{sheets && sheets.length > 1 ? " in this sheet; try another" : ""}.</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Add companies to an existing watchlist. */
+export function ImportDialog({ d, onImport, onClose }: { d: Dataset; onImport: (isins: string[]) => void; onClose: () => void }) {
+  const [parsed, setParsed] = useState<Parsed | null>(null);
+  const all = parsed ? [...parsed.found, ...parsed.noData] : [];
   return (
     <Modal title="Add companies" onClose={onClose}>
-      <p className="soft" style={{ marginTop: 0 }}>
-        Paste ISINs, NSE symbols or BSE codes: one per line, or copy a whole column straight from Excel. You can also load a .csv or .txt file.
-      </p>
-      <textarea className="input" style={{ width: "100%", height: 180, padding: 10, fontFamily: "var(--mono)", fontSize: 12, resize: "vertical" }}
-        autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={"INE002A01018\nTCS\n500209"} />
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-        <label className="btn">
-          Load file
-          <input type="file" accept=".csv,.txt" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
-        </label>
-        <span className="soft">
-          {parsed.found.length} found{keepIsins.length ? ` · ${keepIsins.length} ISINs with no current data (kept)` : ""}{unknown.length ? ` · ${unknown.length} not recognised` : ""}
-        </span>
-        <button className="btn primary" style={{ marginLeft: "auto" }} disabled={!found.length} onClick={() => { onImport(found); onClose(); }}>
-          Add {found.length || ""} {found.length === 1 ? "company" : "companies"}
+      <ListInput d={d} onParsed={setParsed} />
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!all.length} onClick={() => { onImport(all); onClose(); }}>
+          Add {all.length ? all.length.toLocaleString("en-IN") : ""} {all.length === 1 ? "company" : "companies"}
         </button>
       </div>
-      {unknown.length > 0 && <div className="note">Not recognised: {unknown.slice(0, 12).join(", ")}{unknown.length > 12 ? "…" : ""}</div>}
+    </Modal>
+  );
+}
+
+/** Create a watchlist, optionally filled from a file or pasted list. */
+export function NewWatchlistDialog({ d, onCreate, onClose }: { d: Dataset; onCreate: (name: string, isins: string[]) => void; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [parsed, setParsed] = useState<Parsed | null>(null);
+  const all = parsed ? [...parsed.found, ...parsed.noData] : [];
+  const finalName = name.trim();
+  const submit = () => { if (!finalName) { setTouched(true); return; } onCreate(finalName, all); };
+  return (
+    <Modal title="New watchlist" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <label className="soft" style={{ fontSize: 12 }}>Name</label>
+        <input className="input" style={{ width: "100%", marginBottom: 4 }} autoFocus placeholder="e.g. Long-term holdings" value={name}
+          onChange={(e) => { setName(e.target.value); setTouched(true); }} />
+        {touched && !finalName && <div style={{ color: "var(--down)", fontSize: 12 }}>Enter a name for the watchlist.</div>}
+        <div className="soft" style={{ fontSize: 12, margin: "12px 0 6px" }}>Companies (optional: you can add them later)</div>
+        <ListInput d={d} onParsed={setParsed} onFileName={(n) => { if (!name.trim()) setName(n); }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn primary">Create{all.length ? ` with ${all.length.toLocaleString("en-IN")} companies` : ""}</button>
+        </div>
+      </form>
     </Modal>
   );
 }
