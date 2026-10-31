@@ -91,6 +91,9 @@ def _fill_from_annual(out, annual, shares):
     than NSE's broad sectors; NSE's label is kept as `sector`."""
     a = (annual.dropna(subset=["isin"]).sort_values("fy_end")
          .drop_duplicates("isin", keep="last").set_index("isin").reindex(out.index))
+    fields = ["industry", "equity_cr", "equity_prev_cr", "debt_cr", "cash_cr", "revenue_cr", "operating_profit_cr",
+              "other_income_cr", "interest_cr", "pbt_cr", "net_profit_cr", "fy_end"]
+    a = a.reindex(columns=a.columns.union(fields))
     out["sector"] = out["industry"]
     out["industry"] = a["industry"].fillna(out["industry"])
 
@@ -108,6 +111,10 @@ def _fill_from_annual(out, annual, shares):
         "pb": (out["close"] / (eq * 1e7 / shares)).where(eq > 0) if shares is not None else np.nan,
         "ev_cr": ev, "ev_ebitda": (ev / ebitda).where(ebitda > 0),
     }, index=out.index)
+    # Holding companies (e.g. Coal India) earn mostly dividends from subsidiaries,
+    # so standalone statements say little about the business: leave them blank.
+    holding = (a["other_income_cr"] > 2 * a["operating_profit_cr"].clip(lower=0)) & (a["other_income_cr"] > 0.5 * a["pbt_cr"])
+    d.loc[holding.fillna(False).astype(bool), :] = np.nan
     # Lenders: interest is the main cost, so ROCE, EV/EBITDA and D/E mislead.
     lender = (a["interest_cr"] > 0.4 * a["revenue_cr"]) | (out["sector"] == "Financial Services")
     d.loc[lender.fillna(False).astype(bool), ["roce_pct", "ev_ebitda", "debt_to_equity"]] = np.nan
@@ -120,6 +127,8 @@ def _fill_from_annual(out, annual, shares):
         out[k] = cur.where(~take, d[k])
     from_filings = out["balance_sheet_date"].notna() if "balance_sheet_date" in out else pd.Series(False, index=out.index)
     out["fundamentals_source"] = np.select([from_filings, filled], ["NSE filing", "annual report"], None)
+    out["fundamentals_note"] = np.where(holding.fillna(False) & ~from_filings,
+                                        "holding company: standalone figures not meaningful", None)
     out["annual_report_fy"] = a["fy_end"]
 
 

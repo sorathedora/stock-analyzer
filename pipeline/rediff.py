@@ -69,7 +69,9 @@ def fetch_company(url):
     page = main.decode("utf-8", "replace")
     codes = _CODES.search(page)
     bse, nse = (codes.group(1), codes.group(2) or None) if codes else (None, None)
-    industry = _INDUSTRY.search(page)
+    # Two "NEWS FOR" headings: the company's own news, then its industry's.
+    headings = _INDUSTRY.findall(page)
+    industry = html.unescape(headings[-1]).strip() if len(headings) >= 2 else None
     pages = {k: get(f"{url}/{k}", html=True) for k in ("balance-sheet", "profit-and-loss", "cash-flow")}
     if not pages["balance-sheet"] or not pages["profit-and-loss"]:
         return None
@@ -89,7 +91,7 @@ def fetch_company(url):
 
     return {
         "rediff_url": url, "bse_code": bse, "nse_symbol": nse,
-        "industry": html.unescape(industry.group(1)).strip() if industry else None,
+        "industry": industry,
         "fy_end": _year_end(years[0]),
         "equity_cr": equity(0), "equity_prev_cr": equity(1), "debt_cr": debt(0),
         "investments_cr": _v(bs, "investments"),
