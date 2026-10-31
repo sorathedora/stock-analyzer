@@ -20,7 +20,7 @@ import pandas as pd
 from .fetch import get
 
 SITEMAP = "https://money.rediff.com/moneysitemaps/company-sitemap.xml"
-WORKERS = 4  # companies read at once; each makes 4 polite requests
+WORKERS = 10  # companies read at once; each makes 4 requests in turn
 
 _INDUSTRY = re.compile(r"NEWS FOR ([^<]+)</h2>")
 _CODES = re.compile(r"(\d{6})\s*(?:&nbsp;\s*)+([A-Z0-9&\-]*)\s*(?:&nbsp;\s*)+Group", re.I)

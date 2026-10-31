@@ -14,7 +14,7 @@ permissions:
 jobs:
   fundamentals:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 350
     env:
       GH_TOKEN: ${{ github.token }}
       PYTHONUNBUFFERED: "1"
@@ -28,7 +28,10 @@ jobs:
       - run: scripts/data_release.sh download
       # Resumable: companies already in annual_reports.parquet are skipped,
       # so a run that hits the time limit can simply be started again.
+      # The step stops before the job's limit so the upload below still runs
+      # and a rerun continues where this one stopped.
       - run: python -m pipeline fundamentals ${{ inputs.fresh && '--fresh' || '' }}
+        timeout-minutes: 320
         env:
           GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
       - if: success() || failure()
