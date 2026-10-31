@@ -160,24 +160,30 @@ export function IndustriesPage({ d }: { d: Dataset }) {
       const cs = d.companies.filter((c) => c.active && c.industry === ind);
       const pick = (k: string) => cs.map((c) => c[k]).filter((v): v is number => typeof v === "number");
       return {
-        ind, n: cs.length,
+        ind, n: cs.length, sector: (cs.find((c) => c.sector)?.sector as string | undefined) ?? "Other",
         mcap: pick("market_cap_cr").reduce((a, b) => a + b, 0),
         pe: med(pick("pe")), ret1y: med(pick("ret_1y")), dy: med(pick("dividend_yield_pct")),
         top: [...cs].sort((a, b) => ((b.market_cap_cr as number) || 0) - ((a.market_cap_cr as number) || 0)).slice(0, 3),
       };
     });
-    return all.sort((a, b) => b.mcap - a.mcap);
+    // Sectors by total market cap, and industries by market cap within each.
+    const sectors = new Map<string, typeof all>();
+    for (const s of all.sort((a, b) => b.mcap - a.mcap)) sectors.set(s.sector, [...(sectors.get(s.sector) ?? []), s]);
+    return [...sectors].map(([sector, inds]) => ({ sector, inds, mcap: inds.reduce((a, s) => a + s.mcap, 0) }))
+      .sort((a, b) => b.mcap - a.mcap);
   }, [d]);
   const untagged = d.companies.filter((c) => c.active && !c.industry).length;
   return (
     <div className="page">
-      <div className="top"><h1>Industries</h1><span className="meta">{stats.length} industries · medians across each industry's companies</span></div>
+      <div className="top"><h1>Industries</h1><span className="meta">{d.industries.length} industries in {stats.length} sectors · medians across each industry's companies</span></div>
       <div style={{ padding: "0 20px 20px" }}>
         <div className="card" style={{ padding: 0, overflow: "auto" }}>
           <table className="ftable">
             <thead><tr><th>Industry</th><th>Companies</th><th>Total market cap</th><th>Median PE</th><th>Median 1Y</th><th>Median div yield</th><th style={{ textAlign: "left" }}>Largest</th></tr></thead>
             <tbody>
-              {stats.map((s) => (
+              {stats.flatMap((g) => [
+                <tr key={g.sector} className="grouprow"><td colSpan={7}>{g.sector} <span className="muted">· ₹{format(g.mcap, "crore")}</span></td></tr>,
+                ...g.inds.map((s) => (
                 <tr key={s.ind}>
                   <td><Link to={`/industries/${encodeURIComponent(s.ind)}`} style={{ color: "var(--ink)", fontWeight: 500 }}>{s.ind}</Link></td>
                   <td className="num">{s.n}</td>
@@ -187,12 +193,12 @@ export function IndustriesPage({ d }: { d: Dataset }) {
                   <td className="num">{format(s.dy, "pct")}</td>
                   <td style={{ textAlign: "left" }} className="soft">{s.top.map((c) => c.short).join(", ")}</td>
                 </tr>
-              ))}
+              ))])}
             </tbody>
           </table>
         </div>
         <p className="note">
-          {untagged.toLocaleString("en-IN")} companies don't have an industry yet. NSE's free industry lists cover the ~750 largest; tagging the rest is a planned one-time job.
+          Industries and sectors follow the NSE/BSE/AMFI classification, mapped from Rediff Money's finer industries (shown as each company's sub-industry). {untagged.toLocaleString("en-IN")} actively traded companies have no Rediff page, so no industry.
         </p>
       </div>
     </div>

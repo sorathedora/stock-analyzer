@@ -179,7 +179,9 @@ export function CompanyPage({ d }: { d: Dataset }) {
               {c.nse_symbol && <span className="mono">NSE: {c.nse_symbol}</span>}
               {c.bse_code && <span className="mono">BSE: {c.bse_code}</span>}
               <span className="mono muted">{c.isin}</span>
+              {typeof c.sector === "string" && <span>{String(c.sector)}</span>}
               {c.industry && <Link to={`/industries/${encodeURIComponent(c.industry)}`} style={{ color: "var(--accent)" }}>{c.industry}</Link>}
+              {typeof c.sub_industry === "string" && <span className="muted" data-tip="Sub-industry (Rediff Money)">{String(c.sub_industry)}</span>}
               {!c.active && <span className="down">Not traded in the last 30 days</span>}
             </div>
           </div>

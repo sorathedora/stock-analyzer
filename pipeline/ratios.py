@@ -7,6 +7,8 @@ PE uses the best available earnings, in this order:
 and is cross-checked against Google Finance whenever both exist. Consolidated
 figures are preferred over standalone, as on Screener.
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -15,6 +17,33 @@ from . import filings
 # A PE more than this far from Google Finance's is flagged for review.
 PE_MISMATCH_PCT = 10
 EXTREME_PE = 200
+
+# Rediff's ~250 fine industries rolled up into the 54 industries and 22
+# sectors of the NSE/BSE/AMFI classification (the names mutual fund
+# factsheets use). Rediff's label is kept as `sub_industry`.
+_HERE = Path(__file__).parent
+INDUSTRY_OF = pd.read_csv(_HERE / "industry_map.csv").set_index("rediff")["industry"]
+SECTOR_OF = pd.read_csv(_HERE / "industry_sectors.csv").set_index("industry")["sector"]
+# Large companies missing from Rediff's company list, classified by hand.
+OVERRIDES = pd.read_csv(_HERE / "industry_overrides.csv").set_index("nse_symbol")["industry"]
+
+
+def classify(out, industries=None, annual=None):
+    """Set sub_industry (Rediff), industry and sector. NSE's own sector,
+    known for index companies only, fills in where Rediff has no page."""
+    nse_sector = out["industry"]
+    sub = pd.Series(None, index=out.index, dtype="object")
+    for source in (industries, annual):
+        if source is not None and not source.empty and "industry" in source:
+            s = (source.dropna(subset=["isin", "industry"]).drop_duplicates("isin", keep="last")
+                 .set_index("isin")["industry"])
+            sub = sub.fillna(s.reindex(out.index))
+    out["sub_industry"] = sub
+    out["industry"] = sub.map(INDUSTRY_OF).fillna(out["nse_symbol"].map(OVERRIDES))
+    new = sorted(set(sub.dropna()) - set(INDUSTRY_OF.index))
+    if new:
+        print(f"Rediff industries missing from industry_map.csv: {new}")
+    out["sector"] = out["industry"].map(SECTOR_OF).fillna(nse_sector)
 
 
 def _pick_basis(results):
@@ -87,14 +116,12 @@ ANNUAL_METRICS = ["book_value_cr", "debt_cr", "cash_cr", "debt_to_equity", "roe_
 
 def _fill_from_annual(out, annual, shares):
     """Use Rediff's annual-report figures (standalone, ₹ crore) for companies
-    without results filings yet. Also takes Rediff's industry, which is finer
-    than NSE's broad sectors; NSE's label is kept as `sector`."""
+    without results filings yet."""
     a = (annual.dropna(subset=["isin"]).sort_values("fy_end")
          .drop_duplicates("isin", keep="last").set_index("isin").reindex(out.index))
-    fields = ["industry", "equity_cr", "equity_prev_cr", "debt_cr", "cash_cr", "revenue_cr", "operating_profit_cr",
+    fields = ["equity_cr", "equity_prev_cr", "debt_cr", "cash_cr", "revenue_cr", "operating_profit_cr",
               "other_income_cr", "interest_cr", "pbt_cr", "net_profit_cr", "fy_end"]
     a = a.reindex(columns=a.columns.union(fields))
-    out["industry"] = a["industry"].fillna(out["industry"])
 
     eq, debt, cash = a["equity_cr"], a["debt_cr"], a["cash_cr"]
     eq_avg = ((eq + a["equity_prev_cr"]) / 2).fillna(eq)
@@ -138,6 +165,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
     m = price_metrics.set_index("isin")
     out = m[["name", "nse_symbol", "bse_code", "industry", "close", "market_cap_cr"]].copy()
     shares = m.get("shares")
+    classify(out, industries, annual)
 
     if results is not None and not results.empty:
         # Filings only carry the items a company reports; add the rest as blanks.
@@ -161,7 +189,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
         out["ebitda_margin_q_pct"] = _ebitda(q) / q["revenue"] * 100
         # Interest is a lender's main cost, so EBITDA says nothing for banks and NBFCs.
         is_bank = q["is_bank"] if "is_bank" in q else pd.Series(False, index=q.index)
-        lender = (out["industry"] == "Financial Services") | is_bank.reindex(out.index).fillna(False).astype(bool)
+        lender = (out["sector"] == "Financial Services") | is_bank.reindex(out.index).fillna(False).astype(bool)
         out.loc[lender, "ebitda_margin_q_pct"] = np.nan
         out["net_margin_q_pct"] = q["net_profit"] / q["revenue"] * 100
 
@@ -197,11 +225,6 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
         out["cash_from_operations_ytd_cr"] = b["cash_from_operations"] / 1e7
         out["free_cash_flow_ytd_cr"] = (b["cash_from_operations"] - b["capex"].fillna(0)) / 1e7
 
-    # Rediff's industries (~160) replace NSE's ~20 broad sectors; NSE's label stays as `sector`.
-    out["sector"] = out["industry"]
-    if industries is not None and not industries.empty:
-        ind = industries.dropna(subset=["isin", "industry"]).drop_duplicates("isin", keep="last").set_index("isin")["industry"]
-        out["industry"] = ind.reindex(out.index).fillna(out["industry"])
     if annual is not None and not annual.empty:
         _fill_from_annual(out, annual, shares)
 

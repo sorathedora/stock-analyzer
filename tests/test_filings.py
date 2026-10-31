@@ -110,7 +110,9 @@ def test_industry_pe_and_peg():
     # EPS a year and a half earlier: company A grew 21% a year (1.21 ** 1.5 ≈ 1.331).
     history = pd.DataFrame({"eps_then": [10.0 / 1.331, 5.0, 5.0, 2.5, 2.0, 1.0],
                             "eps_then_date": pd.Timestamp("2025-04-29")}, index=metrics["isin"])
-    r = compute(metrics, None, google, None, history).set_index("nse_symbol")
+    industries = pd.DataFrame({"isin": metrics["isin"], "industry": "IT Consulting & Software"})
+    r = compute(metrics, None, google, None, history, None, industries).set_index("nse_symbol")
+    assert r.loc["A", "industry"] == "IT - Software" and r.loc["A", "sector"] == "Information Technology"
     assert r.loc["A", "industry_pe"] == pytest.approx(32.5)   # median of PEs 10, 20, 25, 40, 50, 100
     assert r.loc["A", "eps_growth_pct"] == pytest.approx(21, abs=0.5)
     assert r.loc["A", "peg"] == pytest.approx(10 / 21, abs=0.02)
@@ -124,7 +126,7 @@ def test_annual_report_fills_missing_fundamentals():
         "market_cap_cr": [1000.0, 500.0], "shares": [1e8, 1e8],
     })
     annual = pd.DataFrame({
-        "isin": ["INE000A01011", "INE000B01011"], "industry": ["Auto Parts", "Finance - NBFC"],
+        "isin": ["INE000A01011", "INE000B01011"], "industry": ["Auto Parts & Accessories", "Non-Banking Financial Company (NBFC)"],
         "fy_end": pd.Timestamp("2026-03-31"),
         "equity_cr": [500.0, 400.0], "equity_prev_cr": [400.0, 400.0], "debt_cr": [100.0, 2000.0], "cash_cr": [50.0, 10.0],
         "revenue_cr": [800.0, 300.0], "operating_profit_cr": [150.0, 250.0], "interest_cr": [10.0, 200.0],
@@ -132,7 +134,8 @@ def test_annual_report_fills_missing_fundamentals():
     })
     r = compute(metrics, None, None, None, None, annual).set_index("nse_symbol")
     m = r.loc["MKR"]
-    assert m["industry"] == "Auto Parts" and pd.isna(m["sector"])
+    assert m["sub_industry"] == "Auto Parts & Accessories" and m["industry"] == "Auto Components"
+    assert m["sector"] == "Automobile and Auto Components"
     assert m["pb"] == pytest.approx(100 / (500e7 / 1e8))           # 2.0
     assert m["debt_to_equity"] == pytest.approx(0.2)
     assert m["roe_pct"] == pytest.approx(90 / 450 * 100)            # average equity

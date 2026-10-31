@@ -25,7 +25,7 @@ for (const c of COLUMNS) {
   NAMES[norm(c.label)] = c.key;
   for (const a of c.aliases ?? []) NAMES[a] = c.key;
 }
-Object.assign(NAMES, { industry: "industry", name: "name", symbol: "nse_symbol", nse_symbol: "nse_symbol", bse_code: "bse_code" });
+Object.assign(NAMES, { industry: "industry", sector: "sector", sub_industry: "sub_industry", name: "name", symbol: "nse_symbol", nse_symbol: "nse_symbol", bse_code: "bse_code" });
 
 export const queryNames = () => Object.keys(NAMES);
 

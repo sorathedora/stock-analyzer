@@ -137,8 +137,13 @@ ROCE = (PBT + interest) ÷ (equity + debt), EV/EBITDA uses operating profit.
 They're **standalone** figures, so holding companies whose business sits in
 subsidiaries (e.g. Coal India) are left blank with a note. The app shows each
 value's source on hover, and NSE filings replace these as companies file.
-Rediff's industry names (≈150, finer than NSE's ~20 sectors) are used for
-industry PE and peers; NSE's label is kept as "sector".
+Industries follow the NSE/BSE/AMFI classification: 22 sectors and 54
+industries (the names mutual fund factsheets use). Rediff's ~250 finer labels
+are mapped onto them by hand in `pipeline/industry_map.csv` and shown as each
+company's sub-industry; `industry_sectors.csv` gives each industry's sector,
+and `industry_overrides.csv` classifies large companies Rediff doesn't list.
+Industry PE and peers use the 54 industries. A new Rediff label prints a
+warning in the ratios step until it's added to the map.
 
 ### Industry PE and PEG (no filings needed)
 - **Industry PE**: median PE of the actively traded companies in the same

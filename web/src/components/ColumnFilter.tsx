@@ -11,7 +11,7 @@ export type Filters = Record<string, ColFilter>;
 export const FILTER_KEY: Record<string, string> = { spark: "ret_1y", range: "pct_from_52w_high" };
 export const filterKey = (k: string) => FILTER_KEY[k] ?? k;
 const TEXT_KEYS = new Set(["name"]);
-const SET_KEYS = new Set(["industry", "sector"]);
+const SET_KEYS = new Set(["industry", "sector", "sub_industry"]);
 export const isTextFilter = (k: string) => TEXT_KEYS.has(k);
 export const isSetFilter = (k: string) => SET_KEYS.has(k);
 
@@ -45,6 +45,7 @@ export function filterLabel(k: string) {
   if (k === "name") return "Company";
   if (k === "industry") return "Industry";
   if (k === "sector") return "Sector";
+  if (k === "sub_industry") return "Sub-industry";
   return BY_KEY[k]?.short ?? BY_KEY[k]?.label ?? (VISUAL as Record<string, string>)[k] ?? k;
 }
 
@@ -262,7 +263,7 @@ export function MetricPicker({ at, onPick, onClose }: { at: { x: number; y: numb
       style={{ position: "fixed", left: Math.max(8, Math.min(at.x, window.innerWidth - 328)), top: at.y + 6, width: 320, padding: 10 }}>
       <input className="input" style={{ width: "100%", marginBottom: 6 }} autoFocus placeholder="Find a metric (e.g. ROCE, promoter)" value={q} onChange={(e) => setQ(e.target.value)} />
       <div style={{ maxHeight: 340, overflow: "auto" }}>
-        {[["Classification", [["industry", "Industry"], ["sector", "Sector"], ["name", "Company name"]]] as const,
+        {[["Classification", [["sector", "Sector"], ["industry", "Industry"], ["sub_industry", "Sub-industry"], ["name", "Company name"]]] as const,
           ...groups.map((g) => [g, COLUMNS.filter((c) => c.group === g && !["date", "text", "bool"].includes(c.format)).map((c) => [c.key, c.label])] as const)]
           .map(([g, items]) => {
             const shown = items.filter(([, l]) => match(l));

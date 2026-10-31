@@ -216,6 +216,7 @@ kbd {
 .ftable th { color: var(--ink-3); font-weight: 500; font-size: 12px; }
 .ftable th:first-child, .ftable td:first-child { text-align: left; color: var(--ink-2); position: sticky; left: 0; background: var(--panel); }
 .ftable tr.total td { font-weight: 600; color: var(--ink); }
+.ftable tr.grouprow td { text-align: left; font-weight: 600; color: var(--ink); background: var(--sunk); padding-top: 12px; }
 .note { font-size: 12px; color: var(--ink-3); margin-top: 8px; }
 .banner { border: 1px solid var(--line); background: var(--sunk); border-radius: 8px; padding: 10px 12px; color: var(--ink-2); font-size: 12.5px; }
 
