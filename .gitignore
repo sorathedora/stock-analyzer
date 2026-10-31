@@ -12,3 +12,4 @@ web/dist/
 web/.wrangler/
 web/public/_test/
 web/*.tsbuildinfo
+!pipeline/*.csv
