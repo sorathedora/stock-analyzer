@@ -3,7 +3,9 @@
 The feeds only show the latest ~20 filings, so this runs every few minutes.
 Each new filing's XBRL is downloaded once, parsed, and appended to
 results.parquet or shareholding.parquet. filings_index.parquet records
-every link seen, so re-runs skip what is already stored.
+every link seen, so re-runs skip what is already stored. If either table is
+lost, the filings the index lists as parsed are downloaded again from NSE's
+archive to rebuild it.
 """
 import re
 
@@ -44,14 +46,31 @@ def feed_items(kind):
     return pd.DataFrame(rows)
 
 
+TABLES = {"results": store.RESULTS, "shareholding": store.SHAREHOLDING}
+
+
+def lost(index):
+    """Filings already parsed whose table is missing, to download again."""
+    if index.empty or "kind" not in index:
+        return pd.DataFrame()
+    gone = [k for k, path in TABLES.items() if not path.exists()]
+    rows = index[index["kind"].isin(gone) & (index["status"] == "parsed")]
+    if not rows.empty:
+        print(f"rebuilding {', '.join(gone)} from {len(rows)} filings on record")
+    return rows[["kind", "link", "company", "description", "published"]]
+
+
 def collect():
     index = pd.read_parquet(store.FILINGS_INDEX) if store.FILINGS_INDEX.exists() else pd.DataFrame(columns=["link"])
-    seen = set(index["link"])
+    redo = lost(index)
+    seen = set(index["link"]) - set(redo.get("link", []))
     new_index, results, holdings = [], [], []
     for kind in FEEDS:
-        items = feed_items(kind)
+        items = pd.concat([redo[redo["kind"] == kind] if not redo.empty else pd.DataFrame(), feed_items(kind)],
+                          ignore_index=True)
         if items.empty:
             continue
+        items = items.drop_duplicates("link")
         for item in items[~items["link"].isin(seen)].to_dict("records"):
             raw = get(item["link"])
             status = "missing"

@@ -35,9 +35,27 @@ case "$cmd" in
     else
       for p in "${patterns[@]}"; do files+=(data/$p); done
     fi
-    if [ ${#files[@]} -gt 0 ]; then
-      gh release upload "$TAG" "${files[@]}" --clobber
-    fi
+    # One file at a time, with retries: --clobber deletes the old copy first,
+    # so a GitHub server error mid-upload would otherwise lose the file.
+    failed=0
+    for f in "${files[@]}"; do
+      if [ ! -f "$f" ]; then
+        echo "Skipping $f: not created by this run"
+        continue
+      fi
+      for attempt in 1 2 3 4; do
+        if gh release upload "$TAG" "$f" --clobber; then
+          break
+        fi
+        if [ "$attempt" -eq 4 ]; then
+          echo "Giving up on $f" >&2
+          failed=1
+        else
+          sleep $((attempt * 10))
+        fi
+      done
+    done
+    exit $failed
     ;;
   *)
     echo "usage: $0 download|upload [pattern...]" >&2
