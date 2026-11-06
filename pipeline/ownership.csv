@@ -1,0 +1,187 @@
+symbol,owner_type,psu_group
+BHEL,Central PSU,Maharatna
+BPCL,Central PSU,Maharatna
+COALINDIA,Central PSU,Maharatna
+GAIL,Central PSU,Maharatna
+HINDPETRO,Central PSU,Maharatna
+IOC,Central PSU,Maharatna
+NTPC,Central PSU,Maharatna
+ONGC,Central PSU,Maharatna
+PFC,Central PSU,Maharatna
+POWERGRID,Central PSU,Maharatna
+SAIL,Central PSU,Maharatna
+RECLTD,Central PSU,Maharatna
+OIL,Central PSU,Maharatna
+HAL,Central PSU,Maharatna
+BEL,Central PSU,Navratna
+CONCOR,Central PSU,Navratna
+ENGINERSIN,Central PSU,Navratna
+RVNL,Central PSU,Navratna
+MTNL,Central PSU,Navratna
+NATIONALUM,Central PSU,Navratna
+NBCC,Central PSU,Navratna
+NMDC,Central PSU,Navratna
+NLCINDIA,Central PSU,Navratna
+SCI,Central PSU,Navratna
+RCF,Central PSU,Navratna
+IRCON,Central PSU,Navratna
+RITES,Central PSU,Navratna
+NFL,Central PSU,Navratna
+HUDCO,Central PSU,Navratna
+IREDA,Central PSU,Navratna
+MAZDOCK,Central PSU,Navratna
+RAILTEL,Central PSU,Navratna
+NHPC,Central PSU,Navratna
+SJVN,Central PSU,Navratna
+IRCTC,Central PSU,Navratna
+IRFC,Central PSU,Navratna
+BALMLAWRIE,Central PSU,Miniratna
+BHARATCOAL,Central PSU,Miniratna
+BDL,Central PSU,Miniratna
+BEML,Central PSU,Miniratna
+CHENNPETRO,Central PSU,Miniratna
+COCHINSHIP,Central PSU,Miniratna
+GRSE,Central PSU,Miniratna
+HINDCOPPER,Central PSU,Miniratna
+ITDC,Central PSU,Miniratna
+KIOCL,Central PSU,Miniratna
+MOIL,Central PSU,Miniratna
+MRPL,Central PSU,Miniratna
+MIDHANI,Central PSU,Miniratna
+MMTC,Central PSU,Miniratna
+MSTCLTD,Central PSU,Miniratna
+SBIN,Central PSU,PSU bank
+BANKBARODA,Central PSU,PSU bank
+PNB,Central PSU,PSU bank
+CANBK,Central PSU,PSU bank
+UNIONBANK,Central PSU,PSU bank
+INDIANB,Central PSU,PSU bank
+BANKINDIA,Central PSU,PSU bank
+CENTRALBK,Central PSU,PSU bank
+IOB,Central PSU,PSU bank
+UCOBANK,Central PSU,PSU bank
+MAHABANK,Central PSU,PSU bank
+PSB,Central PSU,PSU bank
+IDBI,Central PSU,PSU bank
+LICI,Central PSU,PSU insurer
+GICRE,Central PSU,PSU insurer
+NIACL,Central PSU,PSU insurer
+NTPCGREEN,Central PSU,PSU subsidiary
+SBILIFE,Central PSU,PSU subsidiary
+SBICARD,Central PSU,PSU subsidiary
+LICHSGFIN,Central PSU,PSU subsidiary
+GICHSGFIN,Central PSU,PSU subsidiary
+CANHLIFE,Central PSU,PSU subsidiary
+CRAMC,Central PSU,PSU subsidiary
+IFCI,Central PSU,Other CPSE
+ITI,Central PSU,Other CPSE
+HMT,Central PSU,Other CPSE
+FACT,Central PSU,Other CPSE
+MADRASFERT,Central PSU,Other CPSE
+STCINDIA,Central PSU,Other CPSE
+SCILAL,Central PSU,Other CPSE
+NSLNISP,Central PSU,Other CPSE
+ANDREWYU,Central PSU,Other CPSE
+ORISSAMINE,Central PSU,Other CPSE
+500449,Central PSU,Other CPSE
+524013,Central PSU,Other CPSE
+524663,Central PSU,Other CPSE
+PETRONET,Central PSU,PSU joint venture
+IGL,Central PSU,PSU joint venture
+MGL,Central PSU,PSU joint venture
+GIPCL,State PSU,State PSU
+GNFC,State PSU,State PSU
+GSFC,State PSU,State PSU
+GMDCLTD,State PSU,State PSU
+GUJALKALI,State PSU,State PSU
+GSPL,State PSU,State PSU
+TNPL,State PSU,State PSU
+J&KBANK,State PSU,State PSU
+532160,State PSU,State PSU
+530927,State PSU,State PSU
+500346,State PSU,State PSU
+NESTLEIND,MNC,
+HINDUNILVR,MNC,
+MARUTI,MNC,
+SIEMENS,MNC,
+ENRIN,MNC,
+ABB,MNC,
+BOSCHLTD,MNC,
+COLPAL,MNC,
+PGHH,MNC,
+PGHL,MNC,
+GILLETTE,MNC,
+3MINDIA,MNC,
+WHIRLPOOL,MNC,
+HONAUT,MNC,
+CUMMINSIND,MNC,
+SCHAEFFLER,MNC,
+SKFINDIA,MNC,
+SKFINDUS,MNC,
+TIMKEN,MNC,
+ABBOTINDIA,MNC,
+PFIZER,MNC,
+GLAXO,MNC,
+SANOFI,MNC,
+SANOFICONR,MNC,
+NOVARTIND,MNC,
+ASTRAZEN,MNC,
+BAYERCROP,MNC,
+BASF,MNC,
+CASTROLIND,MNC,
+LINDEINDIA,MNC,
+OFSS,MNC,
+MPHASIS,MNC,
+POWERINDIA,MNC,
+KANSAINER,MNC,
+HYUNDAI,MNC,
+LGEINDIA,MNC,
+ESABINDIA,MNC,
+GRINDWELL,MNC,
+HEIDELBERG,MNC,
+KSB,MNC,
+GOODYEAR,MNC,
+CIEINDIA,MNC,
+ZFCVINDIA,MNC,
+SCHNEIDER,MNC,
+INGERRAND,MNC,
+KENNAMET,MNC,
+ELANTAS,MNC,
+FOSECOIND,MNC,
+HUHTAMAKI,MNC,
+DISAQ,MNC,
+IGARASHI,MNC,
+BLUEDART,MNC,
+UBL,MNC,
+BATAINDIA,MNC,
+GLAND,MNC,
+FORTIS,MNC,
+FMGOETZE,MNC,
+NAM-INDIA,MNC,
+CRISIL,MNC,
+ICRA,MNC,
+HEXT,MNC,
+HDFCBANK,No promoter,
+ICICIBANK,No promoter,
+AXISBANK,No promoter,
+LT,No promoter,
+ITC,No promoter,
+YESBANK,No promoter,
+FEDERALBNK,No promoter,
+IDFCFIRSTB,No promoter,
+SOUTHBANK,No promoter,
+KARURVYSYA,No promoter,
+CUB,No promoter,
+KTKBANK,No promoter,
+UTIAMC,No promoter,
+BSE,No promoter,
+CDSL,No promoter,
+MCX,No promoter,
+CAMS,No promoter,
+IEX,No promoter,
+CARERATING,No promoter,
+ETERNAL,No promoter,
+PAYTM,No promoter,
+POLICYBZR,No promoter,
+DELHIVERY,No promoter,
+SWIGGY,No promoter,

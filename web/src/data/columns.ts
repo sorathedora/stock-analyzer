@@ -17,6 +17,9 @@ export const COLUMNS: ColumnDef[] = [
   // Classification
   { key: "sector", label: "Sector", group: "Price", format: "text", help: "One of 22 broad sectors in the NSE/BSE/AMFI classification, e.g. Capital Goods." },
   { key: "sub_industry", label: "Sub-industry", group: "Price", format: "text", help: "Rediff Money's finer industry, e.g. Auto Ancl - Gears & Drive. Industry PE and peers use the broader Industry." },
+  { key: "ownership", label: "PSU or private", short: "Ownership", group: "Price", format: "text", aliases: ["psu"], help: "PSU (central or state government owned) or Private." },
+  { key: "owner_type", label: "Owner type", group: "Price", format: "text", help: "Central PSU, State PSU, MNC (foreign parent), No promoter (widely held, e.g. HDFC Bank, ITC) or Indian promoter (everything else)." },
+  { key: "psu_group", label: "PSU group", group: "Price", format: "text", help: "For PSUs: Maharatna, Navratna or Miniratna (DPE status), PSU bank, PSU insurer, PSU subsidiary, PSU joint venture, other central PSU, or State PSU." },
   // Price
   { key: "close", label: "CMP", group: "Price", format: "price", aliases: ["price", "cmp", "close"], help: "Current market price: the official closing price on NSE (BSE for BSE-only companies), updated after every trading day." },
   { key: "change_pct", label: "Day change", short: "Day", group: "Price", format: "signed", better: true, aliases: ["day", "change"], help: "Change from the previous close." },

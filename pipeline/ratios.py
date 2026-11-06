@@ -26,6 +26,10 @@ INDUSTRY_OF = pd.read_csv(_HERE / "industry_map.csv").set_index("rediff")["indus
 SECTOR_OF = pd.read_csv(_HERE / "industry_sectors.csv").set_index("industry")["sector"]
 # Large companies missing from Rediff's company list, classified by hand.
 OVERRIDES = pd.read_csv(_HERE / "industry_overrides.csv").set_index("nse_symbol")["industry"]
+# Government-owned companies (by DPE Ratna status, banks, insurers...), MNCs
+# and companies with no promoter, by NSE symbol or BSE code. Everything else
+# is taken to be privately held by an Indian promoter.
+OWNERS = pd.read_csv(_HERE / "ownership.csv", dtype=str).set_index("symbol")
 
 
 def classify(out, industries=None, annual=None):
@@ -44,6 +48,19 @@ def classify(out, industries=None, annual=None):
     if new:
         print(f"Rediff industries missing from industry_map.csv: {new}")
     out["sector"] = out["industry"].map(SECTOR_OF).fillna(nse_sector)
+
+
+def ownership(out):
+    """Set ownership (PSU or Private), owner_type and psu_group."""
+    def lookup(col):
+        by_nse = out["nse_symbol"].map(OWNERS[col])
+        return by_nse.fillna(out["bse_code"].astype("string").map(OWNERS[col]))
+    owner = lookup("owner_type")
+    if "promoter_pct" in out:
+        owner = owner.mask(owner.isna() & (out["promoter_pct"] == 0), "No promoter")
+    out["owner_type"] = owner.fillna("Indian promoter")
+    out["ownership"] = np.where(out["owner_type"].str.endswith("PSU"), "PSU", "Private")
+    out["psu_group"] = lookup("psu_group")
 
 
 def _pick_basis(results):
@@ -295,6 +312,7 @@ def compute(price_metrics, results=None, google=None, shareholding=None, eps_his
                 if c in previous:
                     out[c + "_change"] = latest[c] - previous[c].reindex(latest.index)
         out["shareholding_as_of"] = latest["as_of"]
+    ownership(out)
 
     keep = m.columns.difference(out.columns).difference(["exchange", "symbol", "as_of"])
     return out.join(m[keep]).reset_index()

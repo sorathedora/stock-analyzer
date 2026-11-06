@@ -10,6 +10,7 @@ import { RANKED, RankContext, sortedValues, type RankMode } from "./Cell";
 import { QueryBar, useQuery } from "./QueryBar";
 import { QuickView } from "./QuickView";
 import { AddToWatchlist } from "./AddToWatchlist";
+import { Breakdown } from "./Breakdown";
 
 const FROM_FILINGS = new Set([
   "pb", "ev_cr", "ev_ebitda", "roce_pct", "eps_ttm", "roe_pct", "ebitda_margin_q_pct", "net_margin_q_pct", "debt_to_equity", "current_ratio",
@@ -47,7 +48,7 @@ function download(name: string, text: string) {
   URL.revokeObjectURL(a.href);
 }
 
-export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actions, empty, exportName }: {
+export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actions, empty, exportName, breakdown }: {
   d: Dataset;
   title: React.ReactNode;
   meta?: React.ReactNode;
@@ -58,6 +59,8 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   actions?: React.ReactNode;
   empty?: React.ReactNode;
   exportName: string;
+  /** Offer charts of the rows shown by sector and ownership. */
+  breakdown?: boolean;
 }) {
   const nav = useNavigate();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -69,6 +72,8 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
   const [advanced, setAdvanced] = useState(!!view.query);
   const [rankMode, setRankModeState] = useState<RankMode>(readRankMode);
   const setRankMode = (m: RankMode) => { setRankModeState(m); try { localStorage.setItem("rank.mode", m); } catch { /* ignore */ } };
+  const [charts, setChartsState] = useState(() => { try { return localStorage.getItem("breakdown.open") === "1"; } catch { return false; } });
+  const setCharts = (on: boolean) => { setChartsState(on); try { localStorage.setItem("breakdown.open", on ? "1" : "0"); } catch { /* ignore */ } };
   const { compiled, error } = useQuery(view.query);
   // Preset views always use the preset's current columns; only Custom keeps its own list.
   const columns = view.preset !== "Custom" && PRESETS[view.preset] ? PRESETS[view.preset] : view.columns;
@@ -150,6 +155,7 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
         </div>
         <button className="btn" onClick={() => setPicker(true)} data-tip="Choose and order columns">Columns</button>
         <span style={{ flex: 1 }} />
+        {breakdown && <button className={`btn ${charts ? "on" : ""}`} aria-pressed={charts} onClick={() => setCharts(!charts)} data-tip="Charts of these companies by sector and PSU vs private">Breakdown</button>}
         <button className="btn" onClick={() => download(`${exportName}.csv`, toCsv(shown, columns))} data-tip="Download what you see as CSV (opens in Excel)">Export</button>
       </div>
       <div className="filterbar" role="group" aria-label="Filters">
@@ -188,6 +194,7 @@ export function ScreenView({ d, title, meta, rows, view, onView, onRemove, actio
           Hover a value to see its source.
         </div>
       )}
+      {breakdown && charts && <Breakdown rows={shown} filters={view.filters} onFilter={setFilter} />}
       <RankContext.Provider value={rankCtx}>
       <CompanyTable
         d={d} rows={shown} columns={columns} sort={view.sort} onSort={(s) => onView({ ...view, sort: s })}

@@ -71,6 +71,7 @@ export function WatchlistPage({ d }: { d: Dataset }) {
       <ScreenView
         d={d}
         exportName={w.name}
+        breakdown
         title={renaming
           ? <input ref={nameRef} defaultValue={w.name} autoFocus onBlur={(e) => finishRename(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") finishRename(e.currentTarget.value); if (e.key === "Escape") setRenaming(false); }} />

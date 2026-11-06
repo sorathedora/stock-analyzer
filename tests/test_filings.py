@@ -159,3 +159,19 @@ def test_google_shares_fill_market_cap_for_bse_only():
     assert r.loc["Nse", "market_cap_cr"] == 1000.0           # NSE's own count wins
     assert r.loc["BseOnly", "market_cap_cr"] == pytest.approx(50 * 4e7 / 1e7)
     assert r.loc["BseOnly", "pe"] == pytest.approx(25)
+
+
+def test_ownership():
+    names = ["SBIN", "NESTLEIND", "TNPL", "ZZPVT", "NOPROM", None]
+    n = len(names)
+    metrics = pd.DataFrame({
+        "isin": [f"INE00{i}A01011" for i in range(n)], "name": list("ABCDEF"), "nse_symbol": names,
+        "bse_code": [None] * 5 + ["524663"], "industry": [None] * n, "close": [100.0] * n,
+        "market_cap_cr": [1000.0] * n, "last_trade_date": [pd.Timestamp("2026-10-29")] * n,
+    })
+    holdings = pd.DataFrame({"isin": ["INE004A01011"], "as_of": [pd.Timestamp("2026-09-30")], "promoter_pct": [0.0]})
+    r = compute(metrics, shareholding=holdings).set_index("name")
+    assert list(r["ownership"]) == ["PSU", "Private", "PSU", "Private", "Private", "PSU"]
+    assert list(r["owner_type"]) == ["Central PSU", "MNC", "State PSU", "Indian promoter", "No promoter", "Central PSU"]
+    assert r.loc["A", "psu_group"] == "PSU bank" and r.loc["F", "psu_group"] == "Other CPSE"
+    assert pd.isna(r.loc["B", "psu_group"])
