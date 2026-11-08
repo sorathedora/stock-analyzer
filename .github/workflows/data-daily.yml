@@ -1,13 +1,13 @@
 name: Daily data
 on:
   schedule:
-    # 18:30, 20:00 and 23:00 IST every day. NSE usually posts the day's
+    # 18:30, 20:00 and 23:00 IST on weekdays. NSE usually posts the day's
     # file by 18:00; the later runs catch late files (and GitHub's cron can
-    # start up to an hour late). Weekends are included for special sessions
-    # such as Muhurat trading; on other weekends the run finds no file.
-    - cron: "0 13 * * *"
-    - cron: "30 14 * * *"
-    - cron: "30 17 * * *"
+    # start up to an hour late). For a weekend session such as Muhurat
+    # trading, start this workflow by hand once NSE has posted the file.
+    - cron: "0 13 * * 1-5"
+    - cron: "30 14 * * 1-5"
+    - cron: "30 17 * * 1-5"
   workflow_dispatch:
 concurrency:
   group: prices
@@ -35,7 +35,7 @@ jobs:
         env:
           GOOGLE_SHEET_CSV_URL: ${{ vars.GOOGLE_SHEET_CSV_URL }}
       # Keep whatever was saved even if the run failed partway. A run that
-      # found no new trading day (most weekends) has nothing to upload.
+      # found no new trading day (a holiday) has nothing to upload.
       - if: (success() || failure()) && steps.daily.outputs.updated != 'false'
         run: scripts/data_release.sh upload 'prices_*' universe.parquet corporate_actions.parquet nse_pe.parquet 'price_metrics.*' adjustments.csv 'ratios.*' google_history.parquet
       - if: success() && steps.daily.outputs.updated != 'false'

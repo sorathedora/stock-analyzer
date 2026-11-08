@@ -4,7 +4,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NewWatchlistDialog, SyncDialog } from "./components/Dialogs";
 import { Tooltips } from "./components/visuals";
 import { format } from "./data/format";
-import { startLive } from "./data/live";
+import { checkLive, isWeekend, startLive } from "./data/live";
 import { getData, load, loadError, useData, type Dataset } from "./data/store";
 import { toggleTheme, useTheme } from "./data/theme";
 import { actions, syncFromServer, useSyncStatus, useWatchlists } from "./data/watchlists";
@@ -14,12 +14,16 @@ import { AllPage, IndustriesPage, IndustryPage, WatchlistPage } from "./pages/Sc
 
 const SYNC_DOT = { off: "var(--ink-3)", on: "var(--ok)", badkey: "var(--down)", offline: "var(--warn)" };
 const SYNC_LABEL = { off: "This device only", on: "Synced", badkey: "Sync key rejected", offline: "Sync waiting" };
+/** Where to load the official close by hand after a weekend session. */
+const DAILY_RUN_URL = "https://github.com/sorathedora/stock-analyzer/actions/workflows/data-daily.yml";
 
 function Rail({ d, onSearch, onNewList, onSync, open, onClose }: { d: Dataset; onSearch: () => void; onNewList: () => void; onSync: () => void; open: boolean; onClose: () => void }) {
   const lists = useWatchlists();
   const sync = useSyncStatus();
   const theme = useTheme();
   const active = d.companies.filter((c) => c.active).length;
+  const [check, setCheck] = useState<"idle" | "checking" | "live" | "closed" | "failed">("idle");
+  const runCheck = async () => { setCheck("checking"); setCheck(await checkLive()); };
   return (
     <aside className={`rail ${open ? "open" : ""}`} aria-label="Navigation" onClick={(e) => (e.target as HTMLElement).closest("a") && onClose()}>
       <div className="brand">
@@ -47,11 +51,23 @@ function Rail({ d, onSearch, onNewList, onSync, open, onClose }: { d: Dataset; o
         {d.live ? (
           <div data-tip={`Google Finance prices (up to 20 minutes delayed) for ${d.live.count.toLocaleString("en-IN")} companies, on top of the ${format(d.asOf, "date")} close. PE, market cap and other price-based figures move with them; official closing figures arrive in the evening.`}>
             <span className="dot live" style={{ background: "var(--up)" }} />Live prices · checked <b>{new Date(d.live.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</b>
-            <div className="muted">Quotes up to 20 min behind · refresh every 5 min</div>
+            <div className="muted">Quotes up to 20 min behind · {isWeekend() ? "check again for newer" : "refresh every 5 min"}</div>
+            {isWeekend() && (
+              <div className="muted" data-tip="The evening run that loads NSE's official close runs on weekdays only. For a weekend session, start it on GitHub (Run workflow) once NSE has posted the day's file, usually a few hours after the session.">
+                Official close: <a href={DAILY_RUN_URL} target="_blank" rel="noreferrer">load on GitHub ↗</a>
+              </div>
+            )}
           </div>
         ) : (
           <div><span className="dot" style={{ background: "var(--ok)" }} />Prices <b>{format(d.asOf, "date")} close</b></div>
         )}
+        <div>
+          <button onClick={runCheck} disabled={check === "checking"} data-tip="Fetch the latest quotes now (Google Finance, up to 20 minutes delayed). Works any day, including weekend sessions such as Muhurat trading.">
+            ↻ {check === "checking" ? "Checking…" : "Check live prices"}
+          </button>
+          {check === "closed" && <span className="muted"> · no trading since the close</span>}
+          {check === "failed" && <span className="muted"> · couldn't reach quotes</span>}
+        </div>
         <div className="muted">Data built {d.generated} IST</div>
         <div><button onClick={onSync} data-tip="Sync watchlists across devices"><span className="dot" style={{ background: SYNC_DOT[sync] }} />Watchlists: {SYNC_LABEL[sync]}</button></div>
         <div style={{ marginTop: 8 }}><button onClick={toggleTheme}>{theme === "dark" ? "Light mode" : "Dark mode"}</button></div>

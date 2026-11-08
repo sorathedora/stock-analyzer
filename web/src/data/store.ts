@@ -103,8 +103,9 @@ const num = (v: unknown): v is number => typeof v === "number" && Number.isFinit
 /** Share of quotes that must differ from the close to count as a session. */
 const MIN_MOVED = 0.2;
 
+/** Overlay intraday quotes; returns whether the market traded. */
 export function applyLive(prices: Record<string, number>, at: string) {
-  if (!data) return;
+  if (!data) return false;
   for (const c of data.companies) {
     const b = base.get(c.isin);
     if (b) Object.assign(c, b);
@@ -150,6 +151,7 @@ export function applyLive(prices: Record<string, number>, at: string) {
   }
   data = { ...data, dist: buildDist(data.companies), live: count ? { at, count } : undefined };
   listeners.forEach((l) => l());
+  return count > 0;
 }
 
 export function useData() {
