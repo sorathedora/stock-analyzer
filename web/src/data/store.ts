@@ -100,12 +100,29 @@ const num = (v: unknown): v is number => typeof v === "number" && Number.isFinit
  * the price (market cap, PE, PB, yields, returns, 52-week position) is
  * rescaled; the official figures come back with the next daily data.
  */
+/** Share of quotes that must differ from the close to count as a session. */
+const MIN_MOVED = 0.2;
+
 export function applyLive(prices: Record<string, number>, at: string) {
   if (!data) return;
-  let count = 0;
   for (const c of data.companies) {
     const b = base.get(c.isin);
     if (b) Object.assign(c, b);
+  }
+  // Quotes that mostly match the close mean no session today (a weekend or
+  // holiday); special sessions such as Muhurat trading move them.
+  let compared = 0, moved = 0;
+  for (const c of data.companies) {
+    const p = prices[c.isin];
+    if (!num(p) || !num(c.close) || c.close <= 0) continue;
+    compared++;
+    if (p !== c.close) moved++;
+  }
+  const open = moved >= MIN_MOVED * compared;
+  let count = 0;
+  for (const c of data.companies) {
+    if (!open) break;
+    const b = base.get(c.isin);
     const p = prices[c.isin];
     const close = c.close;
     if (!num(p) || !num(close) || close <= 0 || p === close) continue;

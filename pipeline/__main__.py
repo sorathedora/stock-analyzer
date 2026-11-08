@@ -13,6 +13,7 @@
     python -m pipeline export [DIR]       # write companies.json for the web app
 """
 import argparse
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,6 +28,14 @@ BACKFILL_WORKERS = 4  # days downloaded at once; kept low to stay polite
 
 def _with_isin(df, symbol_to_isin):
     return df.assign(isin=df["symbol"].map(symbol_to_isin))
+
+
+def _nothing_new():
+    """Tell the GitHub workflow there is nothing to upload or deploy."""
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a") as f:
+            f.write("updated=false\n")
 
 
 def fetch_day_safely(day):
@@ -63,13 +72,16 @@ def fetch_day(day):
 
 
 def fetch_range(start, end, workers=1, skip_stored=False):
-    """Fetch and store each weekday; return the last trading day's raw files.
+    """Fetch and store each day; return the last trading day's raw files.
+
+    Weekends are tried too: special sessions such as Muhurat trading can
+    fall on a Saturday or Sunday, and a missing file costs one quick 404.
 
     Several days can be downloaded at once (backfills); results are still
     stored in date order. With skip_stored, days already saved are skipped,
     so an interrupted backfill can resume.
     """
-    days = list(pd.bdate_range(start, end))
+    days = list(pd.date_range(start, end))
     if skip_stored:
         stored = store.stored_dates()
         days = [d for d in days if d not in stored]
@@ -304,10 +316,12 @@ def main(argv=None):
         today = pd.Timestamp.now(tz="Asia/Kolkata").normalize().tz_localize(None)
         if start > today:
             print("Up to date")
+            _nothing_new()
             return
         latest = fetch_range(start, today)
         if latest is None:
             print("No new trading days")
+            _nothing_new()
             return
     else:
         latest = None

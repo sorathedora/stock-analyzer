@@ -1,9 +1,10 @@
 name: Deploy web app
 # Builds the app with the latest data and publishes it to Cloudflare Pages:
-# after every data run, on app or pipeline changes, or by hand.
+# after every data run (Daily data starts it only when it found a new
+# trading day), on app or pipeline changes, or by hand.
 on:
   workflow_run:
-    workflows: ["Daily data", "Import fundamentals", "Collect filings"]
+    workflows: ["Import fundamentals", "Collect filings"]
     types: [completed]
   push:
     branches: [main]
